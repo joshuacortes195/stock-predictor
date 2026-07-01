@@ -21,27 +21,27 @@
   ],
   "test_date_range": [
     "2024-05-24",
-    "2026-06-29"
+    "2026-06-26"
   ],
   "n_train_rows": 1011331,
-  "n_test_rows": 261459,
+  "n_test_rows": 260960,
   "baselines": {
-    "majority_class_baseline": 0.5189494337544318,
-    "persistence_baseline": 0.4912892652385269
+    "majority_class_baseline": 0.5199417535254445,
+    "persistence_baseline": 0.49119788473329246
   },
   "test_metrics": {
-    "accuracy": 0.5186855300448636,
-    "precision": 0.5198163363943934,
+    "accuracy": 0.5194934089515635,
+    "precision": 0.5207622998115636,
     "recall": 0.951180684531706,
-    "f1": 0.6722505234865769,
-    "roc_auc": 0.5071678172495119
+    "f1": 0.673041070315739,
+    "roc_auc": 0.5067985061296794
   },
   "random_forest_test_metrics": {
-    "accuracy": 0.5186549325133195,
-    "precision": 0.5193607334709116,
+    "accuracy": 0.5195355610055181,
+    "precision": 0.520323855969319,
     "recall": 0.9719200495268417,
-    "f1": 0.6769712525667351,
-    "roc_auc": 0.5101115415721721
+    "f1": 0.6777889137306299,
+    "roc_auc": 0.5097988050273914
   },
   "logreg_timeseries_cv_accuracy": [
     0.5267894752454688,

@@ -38,7 +38,10 @@ def _add_ticker_features(g: pd.DataFrame) -> pd.DataFrame:
     g["rsi_14"] = _rsi(close, 14)
 
     # Target: next day's direction. Uses future data ONLY as the label.
-    g["target_next_up"] = (close.shift(-1) > close).astype("float")
+    # next_close.isna() must be preserved as NaN, not coerced to False by the
+    # comparison -- otherwise each ticker's last row gets a bogus "down" label.
+    next_close = close.shift(-1)
+    g["target_next_up"] = np.where(next_close.isna(), np.nan, (next_close > close).astype("float"))
     return g
 
 
