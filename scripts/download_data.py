@@ -1,27 +1,31 @@
-"""Download the training dataset from Kaggle.
+"""Download the S&P 500 daily OHLCV training panel via yfinance.
 
-Dataset: camnugent/sandp500 ("S&P 500 stock data") — daily OHLCV for all
-S&P 500 constituents, 2013-2018. Requires Kaggle API credentials at
-~/.kaggle/kaggle.json (see README.md for setup).
+No API credentials required. Saves a tidy long-format panel to
+data/raw/sp500_panel.csv (date, Ticker, open, high, low, close, volume).
 
 Usage:
     python scripts/download_data.py
 """
 
+import sys
 from pathlib import Path
 
-from kaggle.api.kaggle_api_extended import KaggleApi
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-DATASET = "camnugent/sandp500"
+from stock_predictor.data import download_price_panel, get_sp500_tickers
+
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+START, END = "2016-01-01", "2026-06-30"
 
 
 def main() -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    api = KaggleApi()
-    api.authenticate()
-    api.dataset_download_files(DATASET, path=str(RAW_DIR), unzip=True)
-    print(f"Downloaded {DATASET} to {RAW_DIR}")
+    tickers = get_sp500_tickers()
+    print(f"Fetching {len(tickers)} tickers from {START} to {END}...")
+    panel = download_price_panel(tickers, START, END)
+    out_path = RAW_DIR / "sp500_panel.csv"
+    panel.to_csv(out_path, index=False)
+    print(f"Saved {panel.shape[0]} rows x {panel['Ticker'].nunique()} tickers to {out_path}")
 
 
 if __name__ == "__main__":

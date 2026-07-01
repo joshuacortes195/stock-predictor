@@ -6,6 +6,6 @@ seaborn
 jupyterlab
 joblib
 yfinance
-kaggle
+lxml
 python-dotenv
 pytest
