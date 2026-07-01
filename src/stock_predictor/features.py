@@ -63,3 +63,16 @@ def build_feature_panel(panel: pd.DataFrame) -> pd.DataFrame:
     out = panel[["date", "Ticker"]].join(out.drop(columns=["date", "Ticker"], errors="ignore"))
     needed = FEATURE_COLUMNS + ["target_next_up"]
     return out.dropna(subset=needed).reset_index(drop=True)
+
+
+def latest_feature_row(ticker_df: pd.DataFrame) -> pd.Series:
+    """Feature vector for the most recent date in a single ticker's history.
+
+    Used at serving time, where there's no next-day target yet — unlike
+    build_feature_panel, this does not require target_next_up to be non-NaN.
+    """
+    g = _add_ticker_features(ticker_df)
+    g = g.dropna(subset=FEATURE_COLUMNS)
+    if g.empty:
+        raise ValueError("Not enough history to compute features (need 20+ trading days).")
+    return g.iloc[-1][FEATURE_COLUMNS]

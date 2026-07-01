@@ -72,3 +72,23 @@ def download_price_panel(
 def load_panel(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["date"])
     return df.sort_values(["Ticker", "date"]).reset_index(drop=True)
+
+
+def fetch_recent_ohlcv(ticker: str, period: str = "9mo") -> pd.DataFrame:
+    """Recent daily OHLCV for a single ticker, for live inference.
+
+    ~9 months comfortably covers the 20-trading-day rolling windows the
+    feature pipeline needs, for any ticker a user requests — not just ones
+    seen during training.
+    """
+    hist = yf.Ticker(ticker).history(period=period, auto_adjust=True)
+    if hist.empty:
+        raise ValueError(f"No data returned for ticker '{ticker}' — check the symbol.")
+    hist = hist.reset_index()
+    hist = hist.rename(columns={
+        "Date": "date", "Open": "open", "High": "high",
+        "Low": "low", "Close": "close", "Volume": "volume",
+    })
+    hist["date"] = pd.to_datetime(hist["date"]).dt.tz_localize(None)
+    hist["Ticker"] = ticker.upper()
+    return hist[["date", "Ticker", "open", "high", "low", "close", "volume"]]

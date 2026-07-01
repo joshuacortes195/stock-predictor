@@ -9,3 +9,5 @@ yfinance
 lxml
 python-dotenv
 pytest
+flask
+flask-cors
