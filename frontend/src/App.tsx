@@ -54,6 +54,7 @@ function App() {
             type="text"
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            maxLength={11}
             placeholder="e.g. AAPL"
             className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-4 py-2.5
                        text-lg font-mono tracking-wide focus:outline-none focus:ring-2

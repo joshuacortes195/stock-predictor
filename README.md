@@ -88,6 +88,13 @@ regenerates `models/direction_model.joblib` and `models/metrics.json` from scrat
 python api/app.py    # http://127.0.0.1:5001, GET /api/predict?ticker=AAPL
 ```
 
+The serving layer is hardened for a local demo: it binds to localhost with
+the Werkzeug debugger off (opt back in with `FLASK_DEBUG=1`), validates the
+ticker against a strict Yahoo-symbol pattern before any upstream fetch,
+restricts CORS to the Vite dev origin (override with `CORS_ORIGINS`),
+rate-limits per IP, and returns generic errors instead of tracebacks.
+Dependencies are pinned in `requirements.txt` and audited with `pip-audit`.
+
 ### Run the frontend
 
 ```bash

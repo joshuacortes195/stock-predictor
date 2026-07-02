@@ -1,13 +1,15 @@
-pandas
-numpy
-scikit-learn
-matplotlib
-seaborn
-jupyterlab
-joblib
-yfinance
-lxml
-python-dotenv
-pytest
-flask
-flask-cors
+# Pinned to the versions this project was built and tested with
+# (audited with pip-audit; re-run `pip-audit` after any upgrade).
+pandas==3.0.3
+numpy==2.5.0
+scikit-learn==1.9.0
+matplotlib==3.11.0
+seaborn==0.13.2
+jupyterlab==4.6.1
+joblib==1.5.3
+yfinance==1.5.1
+lxml==6.1.1
+python-dotenv==1.2.2
+pytest==9.1.1
+flask==3.1.3
+flask-cors==6.0.5
