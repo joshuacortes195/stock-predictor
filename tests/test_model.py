@@ -29,7 +29,7 @@ def _panel_frame(n_days=30, tickers=("AAA", "BBB", "CCC")):
     rows = []
     for t in tickers:  # grouped by ticker on purpose — the panel's real layout
         for d in dates:
-            rows.append({"date": d, "Ticker": t, "x": 0.0, "target_next_up": 0})
+            rows.append({"date": d, "Ticker": t, "x": 0.0, "target_up_1d": 0})
     return pd.DataFrame(rows)
 
 
@@ -40,7 +40,7 @@ def test_cv_folds_split_on_dates_not_row_position():
     ~0.52 to ~0.66 via date-fingerprinting of market features."""
     df = _panel_frame()
     X = df[["x"]]
-    y = df["target_next_up"]
+    y = df["target_up_1d"]
     spy = _SpyModel()
 
     time_series_cv_scores(spy, X, y, df["date"], n_splits=4)

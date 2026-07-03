@@ -82,11 +82,11 @@ def test_yahoo_style_tickers_accepted(client, good):
 
 
 def test_response_includes_chart_history_and_signal(client):
-    history = _fake_history(n_days=200)
+    history = _fake_history(n_days=300)
     with patch.object(api_app, "fetch_recent_ohlcv", return_value=history):
         body = client.get("/api/predict?ticker=AAPL").get_json()
 
-    assert len(body["history"]) == 126  # capped at ~6 months of trading days
+    assert len(body["history"]) == 252  # capped at ~1 year of trading days
     assert body["history"][-1]["date"] == str(history["date"].max().date())
     assert all(set(p) == {"date", "close"} for p in body["history"])
 
@@ -104,9 +104,41 @@ def test_forecast_extends_past_last_close(client):
     last_actual = body["history"][-1]["date"]
     assert all(p["date"] > last_actual for p in body["forecast"])
     assert all(p["close"] > 0 for p in body["forecast"])
-    # projected path moves in the predicted direction
+    # projected path moves in the predicted direction (0 drift allowed when
+    # the probability is a near-coin-flip and rounding flattens the path)
     drift = body["forecast"][-1]["close"] - body["history"][-1]["close"]
-    assert (drift >= 0) == (body["probability_up"] >= 0.5)
+    assert drift == 0 or (drift > 0) == (body["probability_up"] >= 0.5)
+
+
+@pytest.mark.parametrize("horizon", ["1d", "1w", "1m"])
+def test_all_horizons_served(client, horizon):
+    with patch.object(api_app, "fetch_recent_ohlcv", return_value=_fake_history(200)):
+        body = client.get(f"/api/predict?ticker=AAPL&horizon={horizon}").get_json()
+    assert body["horizon"] == horizon
+    assert body["prediction"] in ("up", "down")
+    assert len(body["forecast"]) == api_app.FORECAST_DAYS[horizon]
+
+
+def test_invalid_horizon_is_400(client):
+    with patch.object(api_app, "fetch_recent_ohlcv") as fetch:
+        resp = client.get("/api/predict?ticker=AAPL&horizon=1y")
+    assert resp.status_code == 400
+    fetch.assert_not_called()
+
+
+def test_explanation_present_and_bounded(client):
+    with patch.object(api_app, "fetch_recent_ohlcv", return_value=_fake_history(200)):
+        body = client.get("/api/predict?ticker=AAPL").get_json()
+    assert 0 < len(body["explanation"]) <= 5
+    for item in body["explanation"]:
+        assert set(item) == {"feature", "impact", "scope"}
+        assert item["scope"] in ("this_prediction", "model_global")
+
+
+def test_metrics_endpoint(client):
+    resp = client.get("/api/metrics")
+    assert resp.status_code == 200
+    assert "feature_columns" in resp.get_json()
 
 
 def test_tickers_endpoint_serves_cached_constituents(client):
@@ -129,12 +161,12 @@ def test_tickers_endpoint_serves_cached_constituents(client):
     (0.43, "lean_down"),
 ])
 def test_investment_signal_thresholds(proba, verdict):
-    assert api_app.investment_signal(proba)["verdict"] == verdict
+    assert api_app.investment_signal(proba, "1d")["verdict"] == verdict
 
 
 def test_investment_signal_never_says_invest_outright():
     for proba in np.linspace(0.0, 1.0, 101):
-        signal = api_app.investment_signal(float(proba))
+        signal = api_app.investment_signal(float(proba), "1w")
         assert "invest" not in signal["label"].lower()
 
 

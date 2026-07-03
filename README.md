@@ -116,6 +116,13 @@ npm run dev           # http://localhost:5173, proxies /api to the Flask server
 
 ## Results
 
+> **Note:** the app now serves three horizons (next day / week / month) via
+> per-horizon models from `scripts/train_model.py`. The table below is the
+> completed next-day evaluation; the committed `direction_model_1w/1m.joblib`
+> are placeholders (copies of the 1d model) until the in-progress multi-horizon
+> training run finishes — rerun `python scripts/train_model.py` to regenerate
+> all three plus per-horizon metrics.
+
 Chronological holdout: trained on 2016-02 to 2024-05 (~1.01M rows), evaluated
 once on 2024-05 to 2026-06 (~261k rows, never touched during training or CV).
 The served model is selected by expanding-window CV on the training period

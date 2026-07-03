@@ -11,6 +11,11 @@ the model generalizes to tickers it never saw in training.
 import numpy as np
 import pandas as pd
 
+# Prediction horizons in trading days. "1w"/"1m" ask a slower question than
+# next-day direction, where drift has more room to dominate noise.
+HORIZON_DAYS = {"1d": 1, "1w": 5, "1m": 21}
+TARGET_COLUMNS = {h: f"target_up_{h}" for h in HORIZON_DAYS}
+
 
 def _rsi(close: pd.Series, window: int = 14) -> pd.Series:
     delta = close.diff()
@@ -37,11 +42,15 @@ def _add_ticker_features(g: pd.DataFrame) -> pd.DataFrame:
     g["price_to_sma20"] = close / close.rolling(20).mean() - 1
     g["rsi_14"] = _rsi(close, 14)
 
-    # Target: next day's direction. Uses future data ONLY as the label.
-    # next_close.isna() must be preserved as NaN, not coerced to False by the
-    # comparison -- otherwise each ticker's last row gets a bogus "down" label.
-    next_close = close.shift(-1)
-    g["target_next_up"] = np.where(next_close.isna(), np.nan, (next_close > close).astype("float"))
+    # Targets: direction over 1 day / 1 week / 1 month ahead. Future data is
+    # used ONLY as the label. future.isna() must be preserved as NaN, not
+    # coerced to False by the comparison -- otherwise each ticker's trailing
+    # rows get a bogus "down" label.
+    for horizon, days in HORIZON_DAYS.items():
+        future = close.shift(-days)
+        g[TARGET_COLUMNS[horizon]] = np.where(
+            future.isna(), np.nan, (future > close).astype("float")
+        )
     return g
 
 
@@ -112,7 +121,9 @@ def build_feature_panel(panel: pd.DataFrame, market: pd.DataFrame) -> pd.DataFra
     )
     out = panel[["date", "Ticker"]].join(out.drop(columns=["date", "Ticker"], errors="ignore"))
     out = _merge_market_and_calendar(out, build_market_features(market))
-    needed = FEATURE_COLUMNS + ["target_next_up"]
+    # Require features + the 1-day target; longer-horizon targets stay NaN on
+    # each ticker's trailing rows and are dropped per-horizon at training time.
+    needed = FEATURE_COLUMNS + [TARGET_COLUMNS["1d"]]
     out = out.dropna(subset=needed)
     return out.sort_values(["Ticker", "date"]).reset_index(drop=True)
 
@@ -121,7 +132,7 @@ def latest_feature_row(ticker_df: pd.DataFrame, market: pd.DataFrame) -> pd.Seri
     """Feature vector for the most recent date in a single ticker's history.
 
     Used at serving time, where there's no next-day target yet — unlike
-    build_feature_panel, this does not require target_next_up to be non-NaN.
+    build_feature_panel, this does not require target_up_1d to be non-NaN.
     """
     g = _add_ticker_features(ticker_df)
     g = _merge_market_and_calendar(g, build_market_features(market))

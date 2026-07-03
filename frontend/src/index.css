@@ -1,1 +1,25 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/* Design tokens: deep-navy fintech surfaces with a gold accent (Swiss-minimal
+   dark theme). Data polarity colors are validated for CVD + contrast against
+   --color-card; see README design notes. */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: #0b1020; /* page background */
+  --color-card: #151b2c; /* raised panels */
+  --color-card-2: #1b2338; /* nested / hover surfaces */
+  --color-edge: #252e48; /* hairlines and borders */
+  --color-ink: #edf0f7; /* primary text */
+  --color-ink-mute: #93a4bc; /* secondary text (≥4.5:1 on card) */
+  --color-ink-faint: #64748b; /* tertiary text, large sizes only */
+
+  --color-gold: #f59e0b; /* primary accent / CTA */
+  --color-gold-hi: #fbbf24; /* accent hover */
+
+  --color-up: #34d399; /* positive text on dark cards */
+  --color-up-deep: #059669; /* positive chart marks */
+  --color-down: #fb7185; /* negative text on dark cards */
+  --color-down-deep: #f43f5e; /* negative chart marks */
+}

@@ -27,15 +27,17 @@ def chronological_split(df: pd.DataFrame, test_frac: float = 0.2) -> tuple[pd.Da
     return df[df["date"] < cutoff].copy(), df[df["date"] >= cutoff].copy()
 
 
-def naive_baselines(train_df: pd.DataFrame, test_df: pd.DataFrame) -> dict[str, float]:
+def naive_baselines(
+    train_df: pd.DataFrame, test_df: pd.DataFrame, target_col: str = "target_up_1d"
+) -> dict[str, float]:
     """Two baselines every real model must beat on the held-out test set."""
-    majority_class = train_df["target_next_up"].mean() >= 0.5
+    majority_class = train_df[target_col].mean() >= 0.5
     majority_acc = accuracy_score(
-        test_df["target_next_up"], np.full(len(test_df), majority_class)
+        test_df[target_col], np.full(len(test_df), majority_class)
     )
-    # "Tomorrow moves the same direction as today" (today's realized return sign).
+    # "The future moves the same direction as today" (today's realized return sign).
     persistence_pred = (test_df["ret_0"] > 0).astype(int)
-    persistence_acc = accuracy_score(test_df["target_next_up"], persistence_pred)
+    persistence_acc = accuracy_score(test_df[target_col], persistence_pred)
     return {"majority_class_baseline": majority_acc, "persistence_baseline": persistence_acc}
 
 
@@ -103,5 +105,5 @@ def evaluate(model: Pipeline, X_test: pd.DataFrame, y_test: pd.Series) -> dict[s
     }
 
 
-def get_X_y(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    return df[FEATURE_COLUMNS], df["target_next_up"].astype(int)
+def get_X_y(df: pd.DataFrame, target_col: str = "target_up_1d") -> tuple[pd.DataFrame, pd.Series]:
+    return df[FEATURE_COLUMNS], df[target_col].astype(int)

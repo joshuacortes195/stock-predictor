@@ -41,12 +41,12 @@ def test_target_matches_next_day_direction():
     for _, row in feat[feat["Ticker"] == "AAA"].iterrows():
         idx = raw.index.get_loc(row["date"])
         actual_up = float(raw.iloc[idx + 1] > raw.iloc[idx])
-        assert row["target_next_up"] == actual_up
+        assert row["target_up_1d"] == actual_up
 
 
 def test_no_nans_in_features_or_target():
     feat = build_feature_panel(_synthetic_panel(), _synthetic_market())
-    assert feat[FEATURE_COLUMNS + ["target_next_up"]].isna().sum().sum() == 0
+    assert feat[FEATURE_COLUMNS + ["target_up_1d"]].isna().sum().sum() == 0
 
 
 def test_last_row_per_ticker_is_dropped_no_future_target():
