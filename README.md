@@ -1,24 +1,31 @@
 # Stock Movement Predictor
 
 A full-stack app where a user picks a stock ticker and gets a model-driven
-prediction of its next-day **direction** (up/down) — not a price forecast.
+prediction of its **direction** (up/down) over the next day, week, or month —
+not a price forecast. Users can register and keep a persistent watchlist.
 Built as a portfolio project to demonstrate defensible ML methodology end to
 end: data → model → API → frontend.
 
 ## Architecture
 
-Three layers:
+Four layers:
 
 1. **Model** — scikit-learn classifier trained on engineered technical
    features (returns, momentum, volatility, RSI, volume ratio) plus
    market-context features (S&P 500 index returns, VIX level/change,
    excess return over the index, day-of-week), evaluated with a
    chronological holdout and time-aware CV against naive baselines.
-2. **API** — Flask service (`api/app.py`) that loads the trained model and,
-   given any ticker, fetches recent data live and returns a direction
-   prediction + confidence.
-3. **Frontend** — React + TypeScript + Vite + Tailwind UI to query the API
-   and visualize predictions.
+2. **API** — Flask service (`api/app.py`) that loads the trained per-horizon
+   models and, given any ticker, fetches recent data live and returns a
+   direction prediction + confidence + per-feature explanation.
+3. **Accounts & watchlist** (`api/accounts.py`) — SQLite-backed users and
+   per-user watchlists. Passwords are scrypt-hashed (Werkzeug); login state
+   is a signed HttpOnly SameSite=Lax session cookie; every query is
+   parameterized; auth endpoints are rate-limited; mutating endpoints
+   require a JSON body (CSRF belt-and-braces on top of SameSite).
+4. **Frontend** — React + TypeScript + Vite + Tailwind UI: ticker search
+   with an accessible combobox, price chart, prediction cards, login/signup,
+   and an infinite-scroll watchlist page.
 
 ## Why direction, not price
 
@@ -62,7 +69,7 @@ QSI) is unverified — the API surfaces this caveat in every response.
 
 ```
 stock-predictor/
-├── data/                       # raw/processed data (gitignored)
+├── data/                       # raw/processed data + app.db + secret key (all gitignored)
 ├── notebooks/
 │   ├── 01_eda.ipynb            # data exploration, autocorrelation, class balance
 │   └── 02_modeling.ipynb       # baselines, CV, final holdout evaluation
@@ -72,8 +79,10 @@ stock-predictor/
 │   └── train_model.py          # CV model selection + single holdout evaluation
 ├── src/stock_predictor/        # data.py, features.py, model.py (reusable pipeline code)
 ├── models/                     # direction_model.joblib + metrics.json (committed — small, lets the API run without retraining)
-├── tests/                      # leakage / feature-correctness tests (pytest)
-├── api/app.py                  # Flask serving layer
+├── tests/                      # leakage / feature-correctness / auth+watchlist tests (pytest)
+├── api/
+│   ├── app.py                  # Flask serving layer (predictions, metrics, tickers)
+│   └── accounts.py             # users + watchlist: SQLite, scrypt hashing, sessions
 └── frontend/                   # React + TS + Vite + Tailwind UI
 ```
 
@@ -90,8 +99,8 @@ pytest tests/ -q                    # leakage / correctness checks
 ```
 
 `scripts/train_model.py` is the canonical training path (it regenerates
-`models/direction_model.joblib` and `models/metrics.json`); the notebooks
-document the original EDA and Phase 3 modeling walkthrough.
+`models/direction_model_{1d,1w,1m}.joblib` and `models/metrics.json`); the
+notebooks document the original EDA and Phase 3 modeling walkthrough.
 
 ### Run the API
 
@@ -106,6 +115,14 @@ restricts CORS to the Vite dev origin (override with `CORS_ORIGINS`),
 rate-limits per IP, and returns generic errors instead of tracebacks.
 Dependencies are pinned in `requirements.txt` and audited with `pip-audit`.
 
+Accounts live in `data/app.db` (SQLite, created on first run alongside a
+0600 session-signing key at `data/.secret_key`; both gitignored). Set
+`SECRET_KEY` to override the key file and `COOKIE_SECURE=1` when serving
+over TLS. Auth endpoints: `POST /api/auth/register|login|logout`,
+`GET /api/auth/me`; watchlist: `GET/POST /api/watchlist`,
+`DELETE /api/watchlist/<symbol>`, `GET /api/watchlist/symbols` —
+all watchlist routes require a logged-in session and are scoped to it.
+
 ### Run the frontend
 
 ```bash
@@ -116,12 +133,23 @@ npm run dev           # http://localhost:5173, proxies /api to the Flask server
 
 ## Results
 
-> **Note:** the app now serves three horizons (next day / week / month) via
-> per-horizon models from `scripts/train_model.py`. The table below is the
-> completed next-day evaluation; the committed `direction_model_1w/1m.joblib`
-> are placeholders (copies of the 1d model) until the in-progress multi-horizon
-> training run finishes — rerun `python scripts/train_model.py` to regenerate
-> all three plus per-horizon metrics.
+The app serves three horizons (next day / week / month), each with its own
+model selected by expanding-window CV and evaluated once on the chronological
+holdout:
+
+| Horizon | Majority baseline | Selected model | CV accuracy | Test accuracy | Test ROC-AUC |
+|---|---|---|---|---|---|
+| Next day (1d) | 0.520 | Logistic regression | 0.519 | 0.520 | 0.507 |
+| Next week (1w) | 0.534 | Random forest | 0.549 | 0.531 | 0.521 |
+| Next month (1m) | 0.554 | Random forest | 0.576 | 0.553 | 0.516 |
+
+**No horizon beats its majority-class baseline on the holdout.** The longer
+horizons carry marginally more rankable signal (ROC-AUC above 0.5) but the
+headline is unchanged: predictions cluster near coin-flip, and the UI says so.
+Note the baselines themselves rise with horizon — over a month most stocks
+drift up, so "always predict up" gets harder to beat, not easier.
+
+Next-day detail (the horizon studied most thoroughly):
 
 Chronological holdout: trained on 2016-02 to 2024-05 (~1.01M rows), evaluated
 once on 2024-05 to 2026-06 (~261k rows, never touched during training or CV).

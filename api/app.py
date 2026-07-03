@@ -98,7 +98,25 @@ ALLOWED_ORIGINS = [
 ]
 
 app = Flask(__name__)
-CORS(app, origins=ALLOWED_ORIGINS)
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+
+# --- accounts & watchlist (see api/accounts.py for the security notes) ---
+# Imported both as the package `api.app` (tests) and as a script (server).
+try:
+    from .accounts import bp as accounts_bp, init_db, load_or_create_secret_key  # noqa: E402
+except ImportError:
+    from accounts import bp as accounts_bp, init_db, load_or_create_secret_key  # noqa: E402
+
+app.secret_key = load_or_create_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,  # JS can't read the session cookie
+    SESSION_COOKIE_SAMESITE="Lax",  # cross-site POSTs don't carry it (CSRF)
+    # Local demo runs over plain http; set COOKIE_SECURE=1 behind TLS.
+    SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "0") == "1",
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,  # 30 days
+)
+init_db()
+app.register_blueprint(accounts_bp)
 
 
 @app.after_request

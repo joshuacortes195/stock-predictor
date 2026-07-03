@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import PriceChart, { type PricePoint } from './PriceChart'
+import AuthPanel, { type User } from './AuthPanel'
+import Watchlist from './Watchlist'
 
 interface Signal {
   verdict: 'no_edge' | 'weak_up' | 'weak_down' | 'lean_up' | 'lean_down'
@@ -66,6 +68,32 @@ const VERDICT_STYLES: Record<Signal['verdict'], string> = {
 const RECENTS_KEY = 'recentTickers'
 const MAX_RECENTS = 5
 
+type View = 'search' | 'watchlist' | 'auth'
+
+function viewFromHash(): View {
+  const h = window.location.hash
+  if (h.startsWith('#/watchlist')) return 'watchlist'
+  if (h.startsWith('#/account')) return 'auth'
+  return 'search'
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01z" />
+    </svg>
+  )
+}
+
 function loadRecents(): string[] {
   try {
     const raw = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]')
@@ -77,6 +105,23 @@ function loadRecents(): string[] {
 
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-edge bg-card p-6">{children}</div>
+}
+
+function SkeletonResult() {
+  return (
+    <div className="space-y-4" aria-hidden="true">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-[62px] rounded-lg border border-edge bg-card animate-pulse motion-reduce:animate-none"
+          />
+        ))}
+      </div>
+      <div className="h-80 rounded-xl border border-edge bg-card animate-pulse motion-reduce:animate-none" />
+      <div className="h-56 rounded-xl border border-edge bg-card animate-pulse motion-reduce:animate-none" />
+    </div>
+  )
 }
 
 function StatsRow({ history }: { history: PricePoint[] }) {
@@ -128,7 +173,7 @@ function ExplanationCard({ explanation }: { explanation: Explanation[] }) {
           const width = Math.max((Math.abs(e.impact) / maxAbs) * 100, 4)
           return (
             <li key={e.feature} className="flex items-center gap-3">
-              <span className="w-44 shrink-0 text-sm text-ink-mute">{e.feature}</span>
+              <span className="w-32 sm:w-44 shrink-0 text-sm text-ink-mute">{e.feature}</span>
               <div className="flex-1 h-4 flex items-center">
                 <div
                   className="h-2 rounded-full"
@@ -139,7 +184,7 @@ function ExplanationCard({ explanation }: { explanation: Explanation[] }) {
                 />
               </div>
               {!isGlobal && (
-                <span className={`w-20 shrink-0 text-right text-xs font-medium ${positive ? 'text-up' : 'text-down'}`}>
+                <span className={`w-16 sm:w-20 shrink-0 text-right text-xs font-medium ${positive ? 'text-up' : 'text-down'}`}>
                   {positive ? 'toward up' : 'toward down'}
                 </span>
               )}
@@ -203,6 +248,11 @@ function App() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [recents, setRecents] = useState<string[]>(loadRecents)
   const [open, setOpen] = useState(false)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  const [user, setUser] = useState<User | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [saved, setSaved] = useState<Set<string>>(new Set())
+  const [view, setView] = useState<View>(viewFromHash)
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -214,7 +264,67 @@ function App() {
       .then((r) => r.json())
       .then(setMetrics)
       .catch(() => {})
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setUser(d.user ?? null))
+      .catch(() => {})
+      .finally(() => setAuthChecked(true))
   }, [])
+
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  // Saved-symbol set drives the Save/Saved toggle on search results.
+  useEffect(() => {
+    if (!user) {
+      setSaved(new Set())
+      return
+    }
+    fetch('/api/watchlist/symbols')
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d.symbols) && setSaved(new Set<string>(d.symbols)))
+      .catch(() => {})
+  }, [user])
+
+  function go(v: View) {
+    window.location.hash = v === 'search' ? '' : v === 'watchlist' ? '/watchlist' : '/account'
+  }
+
+  async function toggleSave(symbol: string) {
+    if (!user) {
+      go('auth')
+      return
+    }
+    const isSaved = saved.has(symbol)
+    const res = isSaved
+      ? await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: 'DELETE' })
+      : await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        })
+    if (res.ok || res.status === 409 || res.status === 404) {
+      setSaved((prev) => {
+        const next = new Set(prev)
+        if (isSaved) next.delete(symbol)
+        else next.add(symbol)
+        return next
+      })
+    }
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }).catch(() => {})
+    setUser(null)
+    go('search')
+  }
 
   useEffect(() => {
     function onClickAway(e: MouseEvent) {
@@ -230,11 +340,48 @@ function App() {
     ? []
     : recents.map((s) => allTickers.find((t) => t.symbol === s) ?? { symbol: s, name: '' })
 
+  // Flat option list backing the combobox's keyboard navigation; ids feed
+  // aria-activedescendant. Recents render first, then the S&P matches.
+  const options = [
+    ...recentEntries.map((t) => ({ ...t, id: `ticker-opt-recent-${t.symbol}` })),
+    ...matches.map((t) => ({ ...t, id: `ticker-opt-${t.symbol}` })),
+  ]
+
+  function moveActive(delta: number) {
+    if (options.length === 0) return
+    setOpen(true)
+    const next =
+      activeIdx < 0
+        ? delta > 0
+          ? 0
+          : options.length - 1
+        : (activeIdx + delta + options.length) % options.length
+    setActiveIdx(next)
+    document.getElementById(options[next].id)?.scrollIntoView({ block: 'nearest' })
+  }
+
+  function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      moveActive(e.key === 'ArrowDown' ? 1 : -1)
+    } else if (e.key === 'Enter') {
+      if (open && activeIdx >= 0 && options[activeIdx]) {
+        e.preventDefault()
+        void search(options[activeIdx].symbol)
+      }
+      // otherwise fall through to the form submit with the typed text
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+      setActiveIdx(-1)
+    }
+  }
+
   async function search(symbol: string, h: Horizon = horizon) {
     const s = symbol.trim().toUpperCase()
     if (!s) return
 
     setOpen(false)
+    setActiveIdx(-1)
     setTicker(s)
     setLoading(true)
     setError(null)
@@ -268,17 +415,105 @@ function App() {
     if (result) void search(result.ticker, h)
   }
 
+  // The watchlist needs a login; a logged-in user never needs the auth view.
+  const effectiveView: View =
+    view === 'auth' && user
+      ? 'watchlist'
+      : view === 'watchlist' && !user && authChecked
+        ? 'auth'
+        : view
+
   return (
     <div className="min-h-dvh bg-surface text-ink flex flex-col items-center px-4 py-14">
-      <div className="w-full max-w-xl">
+      <main className="w-full max-w-xl">
         <div className="flex items-center gap-2.5 mb-1">
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gold" aria-hidden="true" />
           <h1 className="text-2xl font-semibold tracking-tight">Stock Movement Predictor</h1>
         </div>
-        <p className="text-ink-mute mb-8">
+        <p className="text-ink-mute mb-5">
           Search a ticker for a model-driven direction prediction.
         </p>
 
+        <nav aria-label="Main" className="flex items-center gap-1 mb-6 border-b border-edge pb-3">
+          <button
+            type="button"
+            onClick={() => go('search')}
+            aria-current={effectiveView === 'search' ? 'page' : undefined}
+            className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                        transition-colors duration-200 ${
+              effectiveView === 'search'
+                ? 'bg-card-2 text-ink border border-edge'
+                : 'text-ink-mute hover:text-ink border border-transparent'
+            }`}
+          >
+            Search
+          </button>
+          <button
+            type="button"
+            onClick={() => go('watchlist')}
+            aria-current={effectiveView === 'watchlist' ? 'page' : undefined}
+            className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                        transition-colors duration-200 ${
+              effectiveView === 'watchlist'
+                ? 'bg-card-2 text-ink border border-edge'
+                : 'text-ink-mute hover:text-ink border border-transparent'
+            }`}
+          >
+            My watchlist{saved.size > 0 ? ` (${saved.size})` : ''}
+          </button>
+          <span className="flex-1" />
+          {user ? (
+            <>
+              <span className="text-sm text-ink-mute mr-1 truncate max-w-32">{user.username}</span>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                           text-ink-mute hover:text-ink transition-colors duration-200"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => go('auth')}
+              className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                         border border-edge bg-card hover:bg-card-2 transition-colors duration-200"
+            >
+              Log in
+            </button>
+          )}
+        </nav>
+
+        {effectiveView === 'auth' && (
+          <AuthPanel
+            onAuthed={(u) => {
+              setUser(u)
+              go('watchlist')
+            }}
+          />
+        )}
+
+        {effectiveView === 'watchlist' && user && (
+          <Watchlist
+            key={user.username}
+            onOpen={(symbol) => {
+              go('search')
+              void search(symbol)
+            }}
+            onChanged={(symbol, isSaved) =>
+              setSaved((prev) => {
+                const next = new Set(prev)
+                if (isSaved) next.add(symbol)
+                else next.delete(symbol)
+                return next
+              })
+            }
+          />
+        )}
+
+        <div hidden={effectiveView !== 'search'}>
         <form onSubmit={handleSubmit} className="flex gap-2 mb-3">
           <div className="relative flex-1" ref={boxRef}>
             <input
@@ -287,14 +522,24 @@ function App() {
               onChange={(e) => {
                 setTicker(e.target.value.toUpperCase())
                 setOpen(true)
+                setActiveIdx(-1)
               }}
               onFocus={() => setOpen(true)}
-              onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+              onKeyDown={onInputKeyDown}
               maxLength={11}
               placeholder="e.g. AAPL"
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              enterKeyHint="search"
               role="combobox"
+              aria-label="Ticker symbol"
               aria-expanded={open}
               aria-controls="ticker-listbox"
+              aria-autocomplete="list"
+              aria-activedescendant={
+                open && activeIdx >= 0 && options[activeIdx] ? options[activeIdx].id : undefined
+              }
               className="w-full rounded-lg bg-card border border-edge px-4 py-2.5
                          text-lg font-mono tracking-wide placeholder:text-ink-faint
                          focus:outline-none focus:ring-2 focus:ring-gold/70 focus:border-gold/50
@@ -305,6 +550,9 @@ function App() {
               <ul
                 id="ticker-listbox"
                 role="listbox"
+                // Chromium makes scrollable regions tabbable; keyboard access
+                // goes through the combobox (aria-activedescendant), not Tab.
+                tabIndex={-1}
                 className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto rounded-lg
                            border border-edge bg-card shadow-xl shadow-black/50"
               >
@@ -313,13 +561,21 @@ function App() {
                     Recent
                   </li>
                 )}
-                {recentEntries.map((t) => (
-                  <li key={`recent-${t.symbol}`} role="option" aria-selected="false">
+                {recentEntries.map((t, i) => (
+                  <li
+                    key={`recent-${t.symbol}`}
+                    id={`ticker-opt-recent-${t.symbol}`}
+                    role="option"
+                    aria-selected={i === activeIdx}
+                  >
                     <button
                       type="button"
+                      tabIndex={-1}
                       onClick={() => void search(t.symbol)}
-                      className="w-full text-left px-4 py-2 hover:bg-card-2 cursor-pointer
-                                 transition-colors duration-150 flex justify-between gap-3"
+                      className={`w-full text-left px-4 py-2 pointer-coarse:py-3 hover:bg-card-2 cursor-pointer
+                                 transition-colors duration-150 flex justify-between gap-3 ${
+                                   i === activeIdx ? 'bg-card-2' : ''
+                                 }`}
                     >
                       <span className="font-mono">{t.symbol}</span>
                       <span className="text-ink-mute text-sm truncate">{t.name}</span>
@@ -331,19 +587,30 @@ function App() {
                     S&amp;P 500
                   </li>
                 )}
-                {matches.map((t) => (
-                  <li key={t.symbol} role="option" aria-selected="false">
-                    <button
-                      type="button"
-                      onClick={() => void search(t.symbol)}
-                      className="w-full text-left px-4 py-2 hover:bg-card-2 cursor-pointer
-                                 transition-colors duration-150 flex justify-between gap-3"
+                {matches.map((t, i) => {
+                  const idx = recentEntries.length + i
+                  return (
+                    <li
+                      key={t.symbol}
+                      id={`ticker-opt-${t.symbol}`}
+                      role="option"
+                      aria-selected={idx === activeIdx}
                     >
-                      <span className="font-mono">{t.symbol}</span>
-                      <span className="text-ink-mute text-sm truncate">{t.name}</span>
-                    </button>
-                  </li>
-                ))}
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => void search(t.symbol)}
+                        className={`w-full text-left px-4 py-2 pointer-coarse:py-3 hover:bg-card-2 cursor-pointer
+                                   transition-colors duration-150 flex justify-between gap-3 ${
+                                     idx === activeIdx ? 'bg-card-2' : ''
+                                   }`}
+                      >
+                        <span className="font-mono">{t.symbol}</span>
+                        <span className="text-ink-mute text-sm truncate">{t.name}</span>
+                      </button>
+                    </li>
+                  )
+                })}
                 {query && matches.length === 0 && (
                   <li className="px-4 py-2.5 text-sm text-ink-mute">
                     Not in the S&amp;P 500 list — press Search to look it up anyway.
@@ -371,7 +638,7 @@ function App() {
               type="button"
               onClick={() => pickHorizon(h.key)}
               aria-pressed={horizon === h.key}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium cursor-pointer
+              className={`px-3 py-1.5 pointer-coarse:py-3 pointer-coarse:px-4 rounded-md text-sm font-medium cursor-pointer
                           transition-colors duration-200 ${
                 horizon === h.key
                   ? 'bg-card-2 text-ink border border-edge'
@@ -383,14 +650,68 @@ function App() {
           ))}
         </div>
 
+        {/* Screen-reader announcements for async state; visual users get the
+            skeleton / result cards below. */}
+        <div aria-live="polite" className="sr-only">
+          {loading
+            ? 'Loading prediction…'
+            : result
+              ? `Prediction for ${result.ticker}: ${result.prediction}, ${(result.confidence * 100).toFixed(0)} percent confidence.`
+              : ''}
+        </div>
+
         {error && (
-          <div className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-3 mb-6">
-            {error}
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-3 mb-6
+                       flex items-center justify-between gap-4"
+          >
+            <span>{error}</span>
+            {ticker.trim() && (
+              <button
+                type="button"
+                onClick={() => void search(ticker)}
+                className="shrink-0 rounded-md border border-rose-700 px-3 py-1.5 pointer-coarse:py-3
+                           text-sm font-medium cursor-pointer hover:bg-rose-900/50
+                           transition-colors duration-150"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+
+        {loading && !result && <SkeletonResult />}
+
+        {!result && !error && !loading && (
+          <div className="rounded-xl border border-dashed border-edge px-6 py-8 text-center">
+            <p className="text-sm text-ink-mute mb-4">
+              No prediction yet — search a ticker above, or try one of these:
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {(recents.length > 0 ? recents : ['AAPL', 'MSFT', 'NVDA', 'QCOM']).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => void search(s)}
+                  className="rounded-full border border-edge bg-card px-4 py-1.5 pointer-coarse:py-3
+                             font-mono text-sm cursor-pointer hover:bg-card-2 hover:border-gold/40
+                             transition-colors duration-150"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {result && (
-          <div className="space-y-4">
+          <div
+            className={`space-y-4 transition-opacity duration-200 motion-reduce:transition-none ${
+              loading ? 'opacity-60' : ''
+            }`}
+            aria-busy={loading}
+          >
             <StatsRow history={result.history} />
 
             {result.history.length > 1 && (
@@ -404,9 +725,26 @@ function App() {
             )}
 
             <Card>
-              <div className="flex items-baseline justify-between mb-4">
-                <span className="text-xl font-mono">{result.ticker}</span>
-                <span className="text-sm text-ink-mute">
+              <div className="flex items-center justify-between mb-4 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xl font-mono">{result.ticker}</span>
+                  <button
+                    type="button"
+                    onClick={() => void toggleSave(result.ticker)}
+                    aria-pressed={saved.has(result.ticker)}
+                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5
+                                pointer-coarse:py-2.5 text-xs font-medium cursor-pointer
+                                transition-colors duration-150 ${
+                      saved.has(result.ticker)
+                        ? 'text-gold border-gold/50 bg-gold/10'
+                        : 'text-ink-mute border-edge hover:text-ink hover:bg-card-2'
+                    }`}
+                  >
+                    <StarIcon filled={saved.has(result.ticker)} />
+                    {saved.has(result.ticker) ? 'Saved' : user ? 'Save' : 'Save (log in)'}
+                  </button>
+                </div>
+                <span className="text-sm text-ink-mute shrink-0">
                   {result.horizon_label} · as of {result.as_of_date}
                 </span>
               </div>
@@ -424,9 +762,16 @@ function App() {
                 </span>
               </div>
 
-              <div className="w-full h-2 rounded-full bg-card-2 overflow-hidden mb-5">
+              <div
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(result.probability_up * 100)}
+                aria-label="Model probability of an up move"
+                className="w-full h-2 rounded-full bg-card-2 overflow-hidden mb-5"
+              >
                 <div
-                  className="h-full bg-gold transition-[width] duration-300"
+                  className="h-full bg-gold transition-[width] duration-300 motion-reduce:transition-none"
                   style={{ width: `${result.probability_up * 100}%` }}
                 />
               </div>
@@ -445,7 +790,8 @@ function App() {
             <AccuracyCard metrics={metrics} horizon={result.horizon} />
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   )
 }

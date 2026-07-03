@@ -127,7 +127,7 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
               setHoverIdx(null)
             }}
             aria-pressed={range === r.key}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors duration-200 ${
+            className={`px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:py-3.5 rounded-md text-xs font-medium cursor-pointer transition-colors duration-200 ${
               range === r.key
                 ? 'bg-card-2 text-ink border border-edge'
                 : 'text-ink-mute hover:text-ink border border-transparent'
@@ -141,11 +141,26 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full touch-none select-none"
+        className="w-full touch-none select-none rounded focus:outline-none
+                   focus-visible:outline-2 focus-visible:outline-gold/70"
         role="img"
-        aria-label={`${ticker} closing price over the past ${range} with a short model-projected continuation`}
+        tabIndex={0}
+        aria-label={`${ticker} closed at $${last.toFixed(2)}, ${change >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(2)}% over the past ${range}, with a short model-projected continuation. Use the left and right arrow keys to inspect individual days.`}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHoverIdx(null)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault()
+            const step = e.key === 'ArrowLeft' ? -1 : 1
+            setHoverIdx((prev) => {
+              const base = prev ?? points.length - 1
+              return Math.max(0, Math.min(points.length - 1, base + step))
+            })
+          } else if (e.key === 'Escape') {
+            setHoverIdx(null)
+          }
+        }}
+        onBlur={() => setHoverIdx(null)}
       >
         <defs>
           <linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1">
@@ -214,6 +229,14 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
           </g>
         )}
       </svg>
+
+      {/* Announces the crosshair value for keyboard/screen-reader users; the
+          SVG tooltip text is invisible to assistive tech inside role="img". */}
+      <div aria-live="polite" className="sr-only">
+        {hover
+          ? `${formatDate(hover.date)}: $${hover.close.toFixed(2)}${hover.projected ? ', projected' : ''}`
+          : ''}
+      </div>
 
       <p className="text-xs text-ink-mute mt-2 leading-relaxed">
         <span

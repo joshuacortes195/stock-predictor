@@ -23,3 +23,12 @@
   --color-down: #fb7185; /* negative text on dark cards */
   --color-down-deep: #f43f5e; /* negative chart marks */
 }
+
+/* Keyboard users get the same gold focus treatment on every control, not
+   just the search input. */
+@layer base {
+  button:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
