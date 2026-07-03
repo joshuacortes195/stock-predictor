@@ -25,66 +25,199 @@
     "dow_wed",
     "dow_thu"
   ],
-  "train_date_range": [
-    "2016-02-02",
-    "2024-05-23"
-  ],
-  "test_date_range": [
-    "2024-05-24",
-    "2026-06-26"
-  ],
-  "n_train_rows": 1011331,
-  "n_test_rows": 260960,
-  "baselines": {
-    "majority_class_baseline": 0.5199417535254445,
-    "persistence_baseline": 0.49119788473329246
-  },
-  "selected_model": "logistic_regression",
-  "selection_rule": "highest mean expanding-window CV accuracy on the training period",
-  "cv_accuracy_by_model": {
-    "logistic_regression": [
-      0.5297660524609633,
-      0.5270492342075856,
-      0.5206652929055049,
-      0.5011846616874007,
-      0.5176685915517432
-    ],
-    "random_forest": [
-      0.5220223343856226,
-      0.5254118785966547,
-      0.5172858404474536,
-      0.5036121993957352,
-      0.525574714308055
-    ],
-    "hist_gradient_boosting": [
-      0.5171325217981423,
-      0.5085722139557675,
-      0.5257344715925817,
-      0.5007480541859016,
-      0.5133187760279407
-    ]
-  },
-  "test_metrics_by_model": {
-    "logistic_regression": {
-      "accuracy": 0.5202828019619865,
-      "precision": 0.5219143135101733,
-      "recall": 0.9212508475575603,
-      "f1": 0.6663326092461053,
-      "roc_auc": 0.5071607594861429
+  "selection_rule": "highest mean expanding-window CV accuracy (date-based folds) on the training period",
+  "horizons": {
+    "1d": {
+      "horizon_days": 1,
+      "train_date_range": [
+        "2016-02-02",
+        "2024-05-23"
+      ],
+      "test_date_range": [
+        "2024-05-24",
+        "2026-06-26"
+      ],
+      "n_train_rows": 1011331,
+      "n_test_rows": 260960,
+      "baselines": {
+        "majority_class_baseline": 0.5199417535254445,
+        "persistence_baseline": 0.49119788473329246
+      },
+      "selected_model": "logistic_regression",
+      "cv_accuracy_by_model": {
+        "logistic_regression": [
+          0.5297660524609633,
+          0.5270492342075856,
+          0.5206652929055049,
+          0.5011846616874007,
+          0.5176685915517432
+        ],
+        "random_forest": [
+          0.5220223343856226,
+          0.5254118785966547,
+          0.5172858404474536,
+          0.5036121993957352,
+          0.525574714308055
+        ],
+        "hist_gradient_boosting": [
+          0.5171325217981423,
+          0.5085722139557675,
+          0.5257344715925817,
+          0.5007480541859016,
+          0.5133187760279407
+        ]
+      },
+      "test_metrics_by_model": {
+        "logistic_regression": {
+          "accuracy": 0.5202828019619865,
+          "precision": 0.5219143135101733,
+          "recall": 0.9212508475575603,
+          "f1": 0.6663326092461053,
+          "roc_auc": 0.5071607594861429
+        },
+        "random_forest": {
+          "accuracy": 0.5205395462906193,
+          "precision": 0.5205840861086647,
+          "recall": 0.9845302320096695,
+          "f1": 0.6810522827500064,
+          "roc_auc": 0.520704196487006
+        },
+        "hist_gradient_boosting": {
+          "accuracy": 0.5030770999386879,
+          "precision": 0.5168409543300906,
+          "recall": 0.6793431797411633,
+          "f1": 0.5870540618860042,
+          "roc_auc": 0.4999580382310205
+        }
+      }
     },
-    "random_forest": {
-      "accuracy": 0.5205395462906193,
-      "precision": 0.5205840861086647,
-      "recall": 0.9845302320096695,
-      "f1": 0.6810522827500064,
-      "roc_auc": 0.520704196487006
+    "1w": {
+      "horizon_days": 5,
+      "train_date_range": [
+        "2016-02-02",
+        "2024-05-17"
+      ],
+      "test_date_range": [
+        "2024-05-20",
+        "2026-06-22"
+      ],
+      "n_train_rows": 1009336,
+      "n_test_rows": 260959,
+      "baselines": {
+        "majority_class_baseline": 0.534248675079227,
+        "persistence_baseline": 0.49530385999333226
+      },
+      "selected_model": "random_forest",
+      "cv_accuracy_by_model": {
+        "logistic_regression": [
+          0.5414177159962672,
+          0.549554718785488,
+          0.53080945482811,
+          0.5092244907464007,
+          0.548206589740025
+        ],
+        "random_forest": [
+          0.5633233551076801,
+          0.5497220727989959,
+          0.5722302700538223,
+          0.5117452887856506,
+          0.5493940868436906
+        ],
+        "hist_gradient_boosting": [
+          0.5270684619393308,
+          0.5349889426812504,
+          0.5766290970332945,
+          0.5143010170517724,
+          0.5462718383613698
+        ]
+      },
+      "test_metrics_by_model": {
+        "logistic_regression": {
+          "accuracy": 0.5347430056062447,
+          "precision": 0.5347460243940095,
+          "recall": 0.9937238643780888,
+          "f1": 0.6953226749511289,
+          "roc_auc": 0.5076625174375838
+        },
+        "random_forest": {
+          "accuracy": 0.5310719308397105,
+          "precision": 0.5331185787338546,
+          "recall": 0.984076547336408,
+          "f1": 0.6915781381926329,
+          "roc_auc": 0.5209711891007042
+        },
+        "hist_gradient_boosting": {
+          "accuracy": 0.5342295149812806,
+          "precision": 0.5442655437205846,
+          "recall": 0.7879957250550507,
+          "f1": 0.6438360579839246,
+          "roc_auc": 0.5165901278474508
+        }
+      }
     },
-    "hist_gradient_boosting": {
-      "accuracy": 0.5030770999386879,
-      "precision": 0.5168409543300906,
-      "recall": 0.6793431797411633,
-      "f1": 0.5870540618860042,
-      "roc_auc": 0.4999580382310205
+    "1m": {
+      "horizon_days": 21,
+      "train_date_range": [
+        "2016-02-02",
+        "2024-05-01"
+      ],
+      "test_date_range": [
+        "2024-05-02",
+        "2026-05-28"
+      ],
+      "n_train_rows": 1003351,
+      "n_test_rows": 258960,
+      "baselines": {
+        "majority_class_baseline": 0.5541280506641952,
+        "persistence_baseline": 0.49769462465245595
+      },
+      "selected_model": "random_forest",
+      "cv_accuracy_by_model": {
+        "logistic_regression": [
+          0.5761147816758905,
+          0.5751007155312369,
+          0.6666311186946785,
+          0.4931046396552027,
+          0.5707600226124356
+        ],
+        "random_forest": [
+          0.5815881219981959,
+          0.5751608442066021,
+          0.6604872442027182,
+          0.4929875210081573,
+          0.5716109029238812
+        ],
+        "hist_gradient_boosting": [
+          0.5681363824755589,
+          0.5578678371715471,
+          0.6359354448828695,
+          0.49902498726334715,
+          0.5531771054916748
+        ]
+      },
+      "test_metrics_by_model": {
+        "logistic_regression": {
+          "accuracy": 0.5540160642570281,
+          "precision": 0.5541642974017383,
+          "recall": 0.9983623351010823,
+          "f1": 0.7127179017750537,
+          "roc_auc": 0.5080079348079336
+        },
+        "random_forest": {
+          "accuracy": 0.5532591906085882,
+          "precision": 0.5537652495021557,
+          "recall": 0.998013895760887,
+          "f1": 0.712299060958141,
+          "roc_auc": 0.516151470710622
+        },
+        "hist_gradient_boosting": {
+          "accuracy": 0.5340863453815261,
+          "precision": 0.5522363486691667,
+          "recall": 0.8414949441451738,
+          "f1": 0.6668489080702569,
+          "roc_auc": 0.5137079100060284
+        }
+      }
     }
   }
 }
