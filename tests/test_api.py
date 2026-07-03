@@ -68,6 +68,39 @@ def test_yahoo_style_tickers_accepted(client, good):
     assert 0.5 <= body["confidence"] <= 1.0
 
 
+def test_response_includes_chart_history_and_signal(client):
+    history = _fake_history(n_days=200)
+    with patch.object(api_app, "fetch_recent_ohlcv", return_value=history):
+        body = client.get("/api/predict?ticker=AAPL").get_json()
+
+    assert len(body["history"]) == 126  # capped at ~6 months of trading days
+    assert body["history"][-1]["date"] == str(history["date"].max().date())
+    assert all(set(p) == {"date", "close"} for p in body["history"])
+
+    assert body["signal"]["verdict"] in ("no_edge", "weak_up", "weak_down", "lean_up", "lean_down")
+    assert body["signal"]["label"]
+    assert body["signal"]["detail"]
+
+
+@pytest.mark.parametrize("proba,verdict", [
+    (0.50, "no_edge"),
+    (0.519, "no_edge"),
+    (0.481, "no_edge"),
+    (0.53, "weak_up"),
+    (0.47, "weak_down"),
+    (0.57, "lean_up"),
+    (0.43, "lean_down"),
+])
+def test_investment_signal_thresholds(proba, verdict):
+    assert api_app.investment_signal(proba)["verdict"] == verdict
+
+
+def test_investment_signal_never_says_invest_outright():
+    for proba in np.linspace(0.0, 1.0, 101):
+        signal = api_app.investment_signal(float(proba))
+        assert "invest" not in signal["label"].lower()
+
+
 def test_upstream_failure_is_502_not_traceback(client):
     with patch.object(api_app, "fetch_recent_ohlcv", side_effect=RuntimeError("boom")):
         resp = client.get("/api/predict", query_string={"ticker": "AAPL"})

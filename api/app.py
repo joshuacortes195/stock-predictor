@@ -75,6 +75,52 @@ def _rate_limited(client_ip: str) -> bool:
     return False
 
 
+# How far |P(up) - 0.5| must reach before the "should I invest?" verdict is
+# anything other than "sit out". Calibrated to this model's probability range
+# (predictions cluster within ~±0.05 of 0.5) and kept deliberately honest:
+# near-coin-flip output should read as "no edge", not as advice.
+EDGE_NONE = 0.02
+EDGE_WEAK = 0.06
+
+
+def investment_signal(proba_up: float) -> dict:
+    """Plain-language verdict derived from the model's probability.
+
+    Never returns unqualified 'invest' — the strongest positive verdict is a
+    hedged lean, matching what the evaluation actually supports (see README).
+    """
+    edge = abs(proba_up - 0.5)
+    leans_up = proba_up >= 0.5
+    if edge < EDGE_NONE:
+        return {
+            "verdict": "no_edge",
+            "label": "No edge — sit this one out",
+            "detail": (
+                "The model sees essentially a coin flip for tomorrow. "
+                "A prediction this close to 50% carries no usable signal."
+            ),
+        }
+    if edge < EDGE_WEAK:
+        return {
+            "verdict": "weak_up" if leans_up else "weak_down",
+            "label": "Weak lean up" if leans_up else "Weak lean down",
+            "detail": (
+                "The model leans slightly "
+                f"{'positive' if leans_up else 'negative'}, but the edge is small "
+                "and this model does not beat a naive baseline historically. "
+                "Treat it as a curiosity, not a trade signal."
+            ),
+        }
+    return {
+        "verdict": "lean_up" if leans_up else "lean_down",
+        "label": "Notable lean up" if leans_up else "Notable lean down",
+        "detail": (
+            "This is an unusually confident output for this model — still an "
+            "educational demo prediction, not investment advice."
+        ),
+    }
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
@@ -104,12 +150,22 @@ def predict():
     direction = "up" if proba_up >= 0.5 else "down"
     confidence = proba_up if direction == "up" else 1 - proba_up
 
+    # ~6 months of closes for the frontend chart — reuses the history already
+    # fetched for feature computation, so no extra upstream call.
+    recent = history.sort_values("date").tail(126)
+    chart = [
+        {"date": str(d.date()), "close": round(float(c), 2)}
+        for d, c in zip(recent["date"], recent["close"])
+    ]
+
     return jsonify({
         "ticker": ticker,
         "as_of_date": str(history["date"].max().date()),
         "prediction": direction,
         "confidence": round(confidence, 4),
         "probability_up": round(proba_up, 4),
+        "signal": investment_signal(proba_up),
+        "history": chart,
         "note": MODEL_NOTE,
     })
 
