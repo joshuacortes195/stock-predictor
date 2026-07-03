@@ -26,15 +26,25 @@ _FALLBACK_TICKERS = [
 ]
 
 
-def get_sp500_tickers() -> list[str]:
-    """Current S&P 500 constituents from Wikipedia (yfinance ticker format)."""
+def get_sp500_constituents() -> list[dict[str, str]]:
+    """Current S&P 500 constituents from Wikipedia as [{symbol, name}, ...],
+    alphabetical by symbol (yfinance ticker format)."""
     try:
         resp = requests.get(WIKI_SP500_URL, headers=_BROWSER_HEADERS, timeout=15)
         resp.raise_for_status()
         table = pd.read_html(io.StringIO(resp.text))[0]
-        return table["Symbol"].str.replace(".", "-", regex=False).tolist()
+        out = [
+            {"symbol": str(sym).replace(".", "-"), "name": str(name)}
+            for sym, name in zip(table["Symbol"], table["Security"])
+        ]
     except Exception:
-        return list(_FALLBACK_TICKERS)
+        out = [{"symbol": t, "name": t} for t in _FALLBACK_TICKERS]
+    return sorted(out, key=lambda c: c["symbol"])
+
+
+def get_sp500_tickers() -> list[str]:
+    """Current S&P 500 constituent symbols (yfinance ticker format)."""
+    return [c["symbol"] for c in get_sp500_constituents()]
 
 
 def download_price_panel(
@@ -72,6 +82,29 @@ def download_price_panel(
 def load_panel(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["date"])
     return df.sort_values(["Ticker", "date"]).reset_index(drop=True)
+
+
+def fetch_market_context(
+    start: str | None = None, end: str | None = None, period: str | None = None
+) -> pd.DataFrame:
+    """Daily S&P 500 index close + VIX close, for the market-context features.
+
+    Both series come from yfinance like everything else, so the same function
+    serves training (start/end) and live inference (period). Columns:
+    date, mkt_close, vix_close.
+    """
+    kwargs = {"start": start, "end": end} if start else {"period": period or "9mo"}
+    raw = yf.download(
+        ["^GSPC", "^VIX"], group_by="ticker", progress=False,
+        auto_adjust=True, threads=True, **kwargs,
+    )
+    closes = pd.DataFrame({
+        "mkt_close": raw["^GSPC"]["Close"],
+        "vix_close": raw["^VIX"]["Close"],
+    }).dropna().reset_index()
+    closes = closes.rename(columns={closes.columns[0]: "date"})
+    closes["date"] = pd.to_datetime(closes["date"]).dt.tz_localize(None)
+    return closes.sort_values("date").reset_index(drop=True)
 
 
 def fetch_recent_ohlcv(ticker: str, period: str = "9mo") -> pd.DataFrame:

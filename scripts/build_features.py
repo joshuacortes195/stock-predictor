@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from stock_predictor.data import load_panel
+from stock_predictor.data import fetch_market_context, load_panel
 from stock_predictor.features import build_feature_panel
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,7 +17,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main() -> None:
     panel = load_panel(str(ROOT / "data" / "raw" / "sp500_panel.csv"))
-    features = build_feature_panel(panel)
+    market = fetch_market_context(
+        start=str(panel["date"].min().date()), end=str(panel["date"].max().date())
+    )
+    features = build_feature_panel(panel, market)
     out_path = ROOT / "data" / "processed_features.csv"
     features.to_csv(out_path, index=False)
     print(f"Saved {features.shape[0]} rows x {features.shape[1]} cols to {out_path}")

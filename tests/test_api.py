@@ -15,8 +15,11 @@ from api import app as api_app
 @pytest.fixture()
 def client():
     api_app._request_log.clear()
+    api_app._market_cache.update({"value": None, "at": 0.0})
+    api_app._tickers_cache.update({"value": None, "at": 0.0})
     api_app.app.config["TESTING"] = True
-    return api_app.app.test_client()
+    with patch.object(api_app, "fetch_market_context", return_value=_fake_market(250)):
+        yield api_app.app.test_client()
 
 
 def _fake_history(n_days=60):
@@ -27,6 +30,16 @@ def _fake_history(n_days=60):
         "date": dates, "Ticker": "AAPL",
         "open": close, "high": close + 1, "low": close - 1,
         "close": close, "volume": rng.integers(1_000, 10_000, n_days),
+    })
+
+
+def _fake_market(n_days=60):
+    dates = pd.bdate_range("2023-01-02", periods=n_days)
+    rng = np.random.default_rng(11)
+    return pd.DataFrame({
+        "date": dates,
+        "mkt_close": 4000 + np.cumsum(rng.normal(0, 10, n_days)),
+        "vix_close": 20 + np.cumsum(rng.normal(0, 0.5, n_days)),
     })
 
 
@@ -80,6 +93,30 @@ def test_response_includes_chart_history_and_signal(client):
     assert body["signal"]["verdict"] in ("no_edge", "weak_up", "weak_down", "lean_up", "lean_down")
     assert body["signal"]["label"]
     assert body["signal"]["detail"]
+
+
+def test_forecast_extends_past_last_close(client):
+    history = _fake_history(n_days=200)
+    with patch.object(api_app, "fetch_recent_ohlcv", return_value=history):
+        body = client.get("/api/predict?ticker=AAPL").get_json()
+
+    assert len(body["forecast"]) == 5
+    last_actual = body["history"][-1]["date"]
+    assert all(p["date"] > last_actual for p in body["forecast"])
+    assert all(p["close"] > 0 for p in body["forecast"])
+    # projected path moves in the predicted direction
+    drift = body["forecast"][-1]["close"] - body["history"][-1]["close"]
+    assert (drift >= 0) == (body["probability_up"] >= 0.5)
+
+
+def test_tickers_endpoint_serves_cached_constituents(client):
+    fake = [{"symbol": "AAPL", "name": "Apple Inc."}, {"symbol": "MSFT", "name": "Microsoft"}]
+    with patch.object(api_app, "get_sp500_constituents", return_value=fake) as fetch:
+        first = client.get("/api/tickers").get_json()
+        second = client.get("/api/tickers").get_json()
+    assert first["tickers"] == fake
+    assert second["tickers"] == fake
+    fetch.assert_called_once()  # second hit comes from the TTL cache
 
 
 @pytest.mark.parametrize("proba,verdict", [

@@ -19,7 +19,9 @@ import joblib
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from stock_predictor.data import fetch_recent_ohlcv
+import pandas as pd
+
+from stock_predictor.data import fetch_market_context, fetch_recent_ohlcv, get_sp500_constituents
 from stock_predictor.features import latest_feature_row
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +64,21 @@ def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# Ticker-independent data cached with a TTL so each predict doesn't refetch
+# it: market context (index + VIX closes) and the S&P 500 constituent list.
+MARKET_TTL_SECONDS = 15 * 60
+TICKERS_TTL_SECONDS = 24 * 60 * 60
+_market_cache: dict = {"value": None, "at": 0.0}
+_tickers_cache: dict = {"value": None, "at": 0.0}
+
+
+def _cached(cache: dict, ttl: float, fetch):
+    if cache["value"] is None or time.monotonic() - cache["at"] > ttl:
+        cache["value"] = fetch()
+        cache["at"] = time.monotonic()
+    return cache["value"]
 
 
 def _rate_limited(client_ip: str) -> bool:
@@ -121,9 +138,36 @@ def investment_signal(proba_up: float) -> dict:
     }
 
 
+def forecast_path(history: pd.DataFrame, proba_up: float, days: int = 5) -> list[dict]:
+    """Short projected close path for the chart's dashed 'prediction' line.
+
+    Direction comes from the model; magnitude is ILLUSTRATIVE — the expected
+    daily move is the model's edge (2·P(up) − 1) scaled by the stock's recent
+    daily volatility, compounded over the next `days` business days. The model
+    only predicts next-day direction, so anything drawn past one day is a
+    visualization aid, and the UI labels it that way.
+    """
+    closes = history.sort_values("date")["close"]
+    daily_vol = float(closes.pct_change().tail(20).std())
+    expected_daily_ret = (2 * proba_up - 1) * daily_vol
+    last_date = history["date"].max()
+    last_close = float(closes.iloc[-1])
+    path = []
+    for d in pd.bdate_range(last_date + pd.Timedelta(days=1), periods=days):
+        last_close *= 1 + expected_daily_ret
+        path.append({"date": str(d.date()), "close": round(last_close, 2)})
+    return path
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.get("/api/tickers")
+def tickers():
+    constituents = _cached(_tickers_cache, TICKERS_TTL_SECONDS, get_sp500_constituents)
+    return jsonify({"tickers": constituents})
 
 
 @app.get("/api/predict")
@@ -139,7 +183,8 @@ def predict():
 
     try:
         history = fetch_recent_ohlcv(ticker)
-        features = latest_feature_row(history)
+        market = _cached(_market_cache, MARKET_TTL_SECONDS, fetch_market_context)
+        features = latest_feature_row(history, market)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception:
@@ -166,6 +211,7 @@ def predict():
         "probability_up": round(proba_up, 4),
         "signal": investment_signal(proba_up),
         "history": chart,
+        "forecast": forecast_path(history, proba_up),
         "note": MODEL_NOTE,
     })
 

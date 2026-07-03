@@ -7,6 +7,7 @@ export interface PricePoint {
 
 interface PriceChartProps {
   data: PricePoint[]
+  forecast: PricePoint[]
   ticker: string
 }
 
@@ -21,29 +22,43 @@ const PAD_RIGHT = 64
 // direction is never color-alone — the header shows a signed % alongside.
 const UP = '#059669'
 const DOWN = '#f43f5e'
+const FORECAST = '#f8fafc'
 
 function formatDate(iso: string) {
   const d = new Date(`${iso}T00:00:00`)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function PriceChart({ data, ticker }: PriceChartProps) {
+export default function PriceChart({ data, forecast, ticker }: PriceChartProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
+  // One combined series for geometry and hover; `projected` marks the tail.
+  const points = useMemo(
+    () => [
+      ...data.map((p) => ({ ...p, projected: false })),
+      ...forecast.map((p) => ({ ...p, projected: true })),
+    ],
+    [data, forecast],
+  )
+
   const geom = useMemo(() => {
-    const closes = data.map((p) => p.close)
+    const closes = points.map((p) => p.close)
     const min = Math.min(...closes)
     const max = Math.max(...closes)
     const span = max - min || 1
     const innerW = WIDTH - PAD_LEFT - PAD_RIGHT
     const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM
-    const x = (i: number) => PAD_LEFT + (i / Math.max(data.length - 1, 1)) * innerW
+    const x = (i: number) => PAD_LEFT + (i / Math.max(points.length - 1, 1)) * innerW
     const y = (c: number) => PAD_TOP + (1 - (c - min) / span) * innerH
-    const line = data.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(2)},${y(p.close).toFixed(2)}`).join('')
-    const area = `${line}L${x(data.length - 1).toFixed(2)},${HEIGHT - PAD_BOTTOM}L${PAD_LEFT},${HEIGHT - PAD_BOTTOM}Z`
-    return { min, max, x, y, line, area }
-  }, [data])
+    const seg = (pts: { close: number }[], offset: number) =>
+      pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(offset + i).toFixed(2)},${y(p.close).toFixed(2)}`).join('')
+    const line = seg(data, 0)
+    const lastActualIdx = data.length - 1
+    const forecastLine = seg([data[lastActualIdx], ...forecast], lastActualIdx)
+    const area = `${line}L${x(lastActualIdx).toFixed(2)},${HEIGHT - PAD_BOTTOM}L${PAD_LEFT},${HEIGHT - PAD_BOTTOM}Z`
+    return { min, max, x, y, line, forecastLine, area }
+  }, [points, data, forecast])
 
   if (data.length < 2) return null
 
@@ -59,14 +74,14 @@ export default function PriceChart({ data, ticker }: PriceChartProps) {
     const rect = svg.getBoundingClientRect()
     const px = ((e.clientX - rect.left) / rect.width) * WIDTH
     const frac = (px - PAD_LEFT) / (WIDTH - PAD_LEFT - PAD_RIGHT)
-    const idx = Math.round(frac * (data.length - 1))
-    setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)))
+    const idx = Math.round(frac * (points.length - 1))
+    setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)))
   }
 
-  const hover = hoverIdx !== null ? data[hoverIdx] : null
+  const hover = hoverIdx !== null ? points[hoverIdx] : null
   const hoverX = hoverIdx !== null ? geom.x(hoverIdx) : 0
   const hoverY = hover ? geom.y(hover.close) : 0
-  const tooltipOnLeft = hoverX > WIDTH * 0.62
+  const tooltipOnLeft = hoverX > WIDTH * 0.58
 
   return (
     <div>
@@ -74,7 +89,7 @@ export default function PriceChart({ data, ticker }: PriceChartProps) {
         <div>
           <span className="text-2xl font-semibold font-mono">${last.toFixed(2)}</span>
           <span className="ml-2 text-sm font-medium" style={{ color }}>
-            {change >= 0 ? '▲' : '▼'} {change >= 0 ? '+' : ''}{changePct.toFixed(2)}%
+            {change >= 0 ? '+' : ''}{changePct.toFixed(2)}%
           </span>
         </div>
         <span className="text-xs text-slate-500">{ticker} · past 6 months</span>
@@ -85,7 +100,7 @@ export default function PriceChart({ data, ticker }: PriceChartProps) {
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full touch-none select-none"
         role="img"
-        aria-label={`${ticker} closing price over the past six months, from $${first.toFixed(2)} to $${last.toFixed(2)}`}
+        aria-label={`${ticker} closing price over the past six months with a short model-projected continuation`}
         onPointerMove={onPointerMove}
         onPointerLeave={() => setHoverIdx(null)}
       >
@@ -115,13 +130,18 @@ export default function PriceChart({ data, ticker }: PriceChartProps) {
 
         <path d={geom.area} fill="url(#area-fill)" />
         <path d={geom.line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        <path
+          d={geom.forecastLine}
+          fill="none" stroke={FORECAST} strokeWidth="2"
+          strokeDasharray="5 4" strokeLinejoin="round"
+        />
 
         {/* first/last date labels, recessive */}
         <text x={PAD_LEFT} y={HEIGHT - 6} fill="#64748b" fontSize="11">
-          {formatDate(data[0].date)}
+          {formatDate(points[0].date)}
         </text>
         <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 6} fill="#64748b" fontSize="11" textAnchor="end">
-          {formatDate(data[data.length - 1].date)}
+          {formatDate(points[points.length - 1].date)}
         </text>
 
         {hover && (
@@ -133,19 +153,34 @@ export default function PriceChart({ data, ticker }: PriceChartProps) {
             />
             {/* 2px surface ring so the marker reads against the line */}
             <circle cx={hoverX} cy={hoverY} r="5.5" fill="#0f172a" />
-            <circle cx={hoverX} cy={hoverY} r="4" fill={color} />
-            <g transform={`translate(${tooltipOnLeft ? hoverX - 118 : hoverX + 10}, ${PAD_TOP})`}>
-              <rect width="108" height="40" rx="6" fill="#1e293b" stroke="#334155" />
+            <circle cx={hoverX} cy={hoverY} r="4" fill={hover.projected ? FORECAST : color} />
+            <g transform={`translate(${tooltipOnLeft ? hoverX - 138 : hoverX + 10}, ${PAD_TOP})`}>
+              <rect width="128" height={hover.projected ? 54 : 40} rx="6" fill="#1e293b" stroke="#334155" />
               <text x="10" y="17" fill="#f1f5f9" fontSize="13" fontWeight="600" fontFamily="ui-monospace, monospace">
                 ${hover.close.toFixed(2)}
               </text>
               <text x="10" y="32" fill="#94a3b8" fontSize="11">
                 {formatDate(hover.date)}
               </text>
+              {hover.projected && (
+                <text x="10" y="46" fill="#94a3b8" fontSize="10" fontStyle="italic">
+                  projected
+                </text>
+              )}
             </g>
           </g>
         )}
       </svg>
+
+      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+        <span
+          className="inline-block w-6 border-t-2 border-dashed align-middle mr-2"
+          style={{ borderColor: FORECAST }}
+        />
+        The white dashed line is the model&apos;s projected path for the next 5 trading
+        days — direction from the prediction, magnitude scaled by recent volatility.
+        Illustrative only.
+      </p>
     </div>
   )
 }

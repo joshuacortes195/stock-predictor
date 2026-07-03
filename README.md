@@ -10,8 +10,10 @@ end: data → model → API → frontend.
 Three layers:
 
 1. **Model** — scikit-learn classifier trained on engineered technical
-   features (returns, momentum, volatility, RSI, volume ratio), evaluated
-   with a chronological holdout and time-aware CV against naive baselines.
+   features (returns, momentum, volatility, RSI, volume ratio) plus
+   market-context features (S&P 500 index returns, VIX level/change,
+   excess return over the index, day-of-week), evaluated with a
+   chronological holdout and time-aware CV against naive baselines.
 2. **API** — Flask service (`api/app.py`) that loads the trained model and,
    given any ticker, fetches recent data live and returns a direction
    prediction + confidence.
@@ -41,6 +43,13 @@ had too little history), 2016-01 to 2026-06, pooled across tickers so the
 model learns generalizable patterns rather than one stock's quirks. No API
 credentials needed, and the same library is reused for live serving.
 
+Two auxiliary datasets add market context, also via `yfinance` so the same
+features are computable live at serving time: the **S&P 500 index** (`^GSPC`
+— market return, market volatility, and each stock's excess return over the
+market) and the **CBOE Volatility Index** (`^VIX` — the market's forward
+volatility expectation, level and 5-day change). Both join the stock panel
+by date using only information available at or before each row's close.
+
 For serving, the API fetches ~9 months of recent OHLCV live via `yfinance`
 for whatever ticker the user requests, so predictions work for **any**
 ticker — including ones outside the S&P 500 training set. Verified working
@@ -59,7 +68,8 @@ stock-predictor/
 │   └── 02_modeling.ipynb       # baselines, CV, final holdout evaluation
 ├── scripts/
 │   ├── download_data.py        # fetches the S&P 500 panel via yfinance
-│   └── build_features.py       # builds the engineered feature panel
+│   ├── build_features.py       # builds the engineered feature panel
+│   └── train_model.py          # CV model selection + single holdout evaluation
 ├── src/stock_predictor/        # data.py, features.py, model.py (reusable pipeline code)
 ├── models/                     # direction_model.joblib + metrics.json (committed — small, lets the API run without retraining)
 ├── tests/                      # leakage / feature-correctness tests (pytest)
@@ -75,12 +85,13 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 python scripts/download_data.py     # ~30s, fetches data/raw/sp500_panel.csv via yfinance
-python scripts/build_features.py    # builds data/processed_features.csv
+python scripts/train_model.py       # features + CV model selection + holdout eval, saves models/
 pytest tests/ -q                    # leakage / correctness checks
 ```
 
-Re-running the notebooks (`jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb`)
-regenerates `models/direction_model.joblib` and `models/metrics.json` from scratch.
+`scripts/train_model.py` is the canonical training path (it regenerates
+`models/direction_model.joblib` and `models/metrics.json`); the notebooks
+document the original EDA and Phase 3 modeling walkthrough.
 
 ### Run the API
 
@@ -107,17 +118,37 @@ npm run dev           # http://localhost:5173, proxies /api to the Flask server
 
 Chronological holdout: trained on 2016-02 to 2024-05 (~1.01M rows), evaluated
 once on 2024-05 to 2026-06 (~261k rows, never touched during training or CV).
+The served model is selected by expanding-window CV on the training period
+(date-based folds — see the leakage note below), then evaluated once on the
+holdout.
 
-| Model | Accuracy | ROC-AUC |
-|---|---|---|
-| Majority-class baseline | 0.520 | — |
-| Persistence baseline ("same as yesterday") | 0.491 | — |
-| Logistic regression *(served)* | 0.519 | 0.507 |
-| Random forest (depth-capped) | 0.520 | 0.510 |
+| Model | CV accuracy (selection) | Test accuracy | Test ROC-AUC |
+|---|---|---|---|
+| Majority-class baseline | — | 0.520 | — |
+| Persistence baseline ("same as yesterday") | — | 0.491 | — |
+| Logistic regression *(selected & served)* | 0.519 | 0.520 | 0.507 |
+| Random forest (depth-capped) | 0.519 | 0.521 | 0.521 |
+| Hist. gradient boosting | 0.513 | 0.503 | 0.500 |
 
-**Neither model beats the naive majority-class baseline.** ROC-AUC barely
-clears 0.50 for both. Full metrics: `models/metrics.json`; full walkthrough
-with 5-fold expanding-window time-series CV: `notebooks/02_modeling.ipynb`.
+**No model meaningfully beats the naive majority-class baseline**, even after
+adding market-context features (index returns, VIX, excess returns,
+day-of-week). The market features did lift the random forest's ROC-AUC from
+0.510 to 0.521 — a real but tiny amount of signal, nowhere near tradable.
+Full metrics: `models/metrics.json`.
+
+### A leakage bug worth documenting
+
+The first CV run with market features showed gradient boosting at **65.7%
+CV accuracy** — which promptly collapsed to 50.8% on the holdout. The cause:
+`TimeSeriesSplit` on a multi-ticker panel sorted by *(ticker, date)* splits
+by row position, not by date, so folds validated on calendar dates the model
+had already seen through other tickers' rows. Date-synchronized features
+(market return, VIX) act as a *date fingerprint*, letting a flexible model
+memorize each date's market direction instead of learning anything
+generalizable. The fix — folds defined on unique dates, so every validation
+date is strictly after every training date — is enforced by a regression
+test (`tests/test_model.py`). CV numbers above are from the fixed splitter;
+the ~52% they show is the honest number.
 
 ## Limitations
 

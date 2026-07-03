@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
@@ -51,19 +51,43 @@ def build_models() -> dict[str, Pipeline]:
                 n_jobs=-1, random_state=42,
             )),
         ]),
+        # Histogram gradient boosting: usually the strongest tabular baseline
+        # (MLU decision-tree track). Depth/leaf caps guard against overfitting
+        # the noisy target; early stopping is OFF because its internal
+        # validation split is shuffled, which mixes dates within the training
+        # slice — a chronological no-no in a panel with date-shared features.
+        "hist_gradient_boosting": Pipeline([
+            ("clf", HistGradientBoostingClassifier(
+                max_depth=4, min_samples_leaf=500, learning_rate=0.05,
+                max_iter=300, early_stopping=False,
+                random_state=42,
+            )),
+        ]),
     }
 
 
-def time_series_cv_scores(model: Pipeline, X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> list[float]:
+def time_series_cv_scores(
+    model: Pipeline, X: pd.DataFrame, y: pd.Series, dates: pd.Series, n_splits: int = 5
+) -> list[float]:
     """Expanding-window CV on the training period only (model selection, not
-    final evaluation) — folds always validate on rows chronologically after
-    the ones they train on."""
+    final evaluation), with folds defined on UNIQUE DATES, not row positions.
+
+    In a multi-ticker panel, row-position splits (plain TimeSeriesSplit on X)
+    leak: rows are grouped by ticker, so a "later" fold contains dates the
+    model already saw via other tickers' rows, and date-synchronized features
+    (market return, VIX) let a flexible model fingerprint the date and recall
+    its outcome. Splitting the date axis ensures every validation date is
+    strictly after every training date.
+    """
+    unique_dates = np.sort(pd.Series(dates.unique()).to_numpy())
     tscv = TimeSeriesSplit(n_splits=n_splits)
     scores = []
-    for train_idx, val_idx in tscv.split(X):
-        model.fit(X.iloc[train_idx], y.iloc[train_idx])
-        preds = model.predict(X.iloc[val_idx])
-        scores.append(accuracy_score(y.iloc[val_idx], preds))
+    for train_idx, val_idx in tscv.split(unique_dates):
+        train_mask = dates.isin(unique_dates[train_idx]).to_numpy()
+        val_mask = dates.isin(unique_dates[val_idx]).to_numpy()
+        model.fit(X[train_mask], y[train_mask])
+        preds = model.predict(X[val_mask])
+        scores.append(accuracy_score(y[val_mask], preds))
     return scores
 
 

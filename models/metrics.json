@@ -13,7 +13,17 @@
     "volatility_20",
     "vol_ratio_20",
     "price_to_sma20",
-    "rsi_14"
+    "rsi_14",
+    "mkt_ret_0",
+    "mkt_ret_lag_1",
+    "mkt_volatility_10",
+    "excess_ret_0",
+    "vix_close",
+    "vix_chg_5",
+    "dow_mon",
+    "dow_tue",
+    "dow_wed",
+    "dow_thu"
   ],
   "train_date_range": [
     "2016-02-02",
@@ -29,25 +39,52 @@
     "majority_class_baseline": 0.5199417535254445,
     "persistence_baseline": 0.49119788473329246
   },
-  "test_metrics": {
-    "accuracy": 0.5194934089515635,
-    "precision": 0.5207622998115636,
-    "recall": 0.951180684531706,
-    "f1": 0.673041070315739,
-    "roc_auc": 0.5067985061296794
+  "selected_model": "logistic_regression",
+  "selection_rule": "highest mean expanding-window CV accuracy on the training period",
+  "cv_accuracy_by_model": {
+    "logistic_regression": [
+      0.5297660524609633,
+      0.5270492342075856,
+      0.5206652929055049,
+      0.5011846616874007,
+      0.5176685915517432
+    ],
+    "random_forest": [
+      0.5220223343856226,
+      0.5254118785966547,
+      0.5172858404474536,
+      0.5036121993957352,
+      0.525574714308055
+    ],
+    "hist_gradient_boosting": [
+      0.5171325217981423,
+      0.5085722139557675,
+      0.5257344715925817,
+      0.5007480541859016,
+      0.5133187760279407
+    ]
   },
-  "random_forest_test_metrics": {
-    "accuracy": 0.5195355610055181,
-    "precision": 0.520323855969319,
-    "recall": 0.9719200495268417,
-    "f1": 0.6777889137306299,
-    "roc_auc": 0.5097988050273914
-  },
-  "logreg_timeseries_cv_accuracy": [
-    0.5267894752454688,
-    0.5269021980955771,
-    0.5294295630506363,
-    0.5273768206223488,
-    0.5250096407700751
-  ]
+  "test_metrics_by_model": {
+    "logistic_regression": {
+      "accuracy": 0.5202828019619865,
+      "precision": 0.5219143135101733,
+      "recall": 0.9212508475575603,
+      "f1": 0.6663326092461053,
+      "roc_auc": 0.5071607594861429
+    },
+    "random_forest": {
+      "accuracy": 0.5205395462906193,
+      "precision": 0.5205840861086647,
+      "recall": 0.9845302320096695,
+      "f1": 0.6810522827500064,
+      "roc_auc": 0.520704196487006
+    },
+    "hist_gradient_boosting": {
+      "accuracy": 0.5030770999386879,
+      "precision": 0.5168409543300906,
+      "recall": 0.6793431797411633,
+      "f1": 0.5870540618860042,
+      "roc_auc": 0.4999580382310205
+    }
+  }
 }
