@@ -492,6 +492,11 @@ function App() {
       body: '{}',
     }).catch(() => {})
     setUser(null)
+    // Back to a clean home screen — don't leave the previous session's
+    // search result (and its Save state) on display.
+    setResult(null)
+    setError(null)
+    setTicker('')
     go('search')
   }
 
