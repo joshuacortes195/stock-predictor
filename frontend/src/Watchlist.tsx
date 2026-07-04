@@ -1,5 +1,71 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+function ConfirmRemoveDialog({
+  symbol,
+  onContinue,
+  onCancel,
+}: {
+  symbol: string
+  onContinue: () => void
+  onCancel: () => void
+}) {
+  const continueRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    continueRef.current?.focus()
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-remove-title"
+        aria-describedby="confirm-remove-desc"
+        className="pop-in w-full max-w-sm rounded-xl border border-edge bg-card p-6 shadow-xl shadow-scrim"
+      >
+        <h2 id="confirm-remove-title" className="font-semibold text-lg mb-1.5">
+          Remove from watchlist?
+        </h2>
+        <p id="confirm-remove-desc" className="text-sm text-ink-mute mb-5 leading-relaxed">
+          You are about to remove{' '}
+          <span className="font-mono font-semibold text-ink">{symbol}</span> from your
+          watchlist. You can always save it again later.
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            ref={continueRef}
+            onClick={onContinue}
+            className="rounded-lg border border-edge bg-card-2 hover:bg-edge px-4 py-2
+                       pointer-coarse:py-3 text-sm font-semibold cursor-pointer
+                       transition-colors duration-150"
+          >
+            Continue
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg bg-down-deep hover:bg-down text-white px-4 py-2
+                       pointer-coarse:py-3 text-sm font-semibold cursor-pointer
+                       transition-colors duration-150"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface Quote {
   last: number
   change_pct: number
@@ -33,6 +99,7 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
   const offsetRef = useRef(0)
@@ -114,13 +181,13 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
       </div>
 
       {error && (
-        <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-3 mb-4 text-sm flex items-center justify-between gap-4">
+        <div role="alert" className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-4 text-sm flex items-center justify-between gap-4">
           <span>{error}</span>
           <button
             type="button"
             onClick={() => void loadMore()}
-            className="shrink-0 rounded-md border border-rose-700 px-3 py-1.5 pointer-coarse:py-3
-                       text-sm font-medium cursor-pointer hover:bg-rose-900/50 transition-colors duration-150"
+            className="shrink-0 rounded-md border border-down-edge px-3 py-1.5 pointer-coarse:py-3
+                       text-sm font-medium cursor-pointer hover:bg-down-bg transition-colors duration-150"
           >
             Try again
           </button>
@@ -162,7 +229,7 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
               </span>
               <button
                 type="button"
-                onClick={() => void remove(item.symbol)}
+                onClick={() => setPendingRemove(item.symbol)}
                 aria-label={`Remove ${item.symbol} from watchlist`}
                 className="shrink-0 rounded-md p-2 pointer-coarse:p-3 text-ink-mute hover:text-down
                            hover:bg-card-2 cursor-pointer transition-colors duration-150"
@@ -182,6 +249,17 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
 
       {!hasMore && items.length > 0 && (
         <p className="text-center text-xs text-ink-faint mt-4">That's everything you've saved.</p>
+      )}
+
+      {pendingRemove && (
+        <ConfirmRemoveDialog
+          symbol={pendingRemove}
+          onContinue={() => {
+            void remove(pendingRemove)
+            setPendingRemove(null)
+          }}
+          onCancel={() => setPendingRemove(null)}
+        />
       )}
     </div>
   )

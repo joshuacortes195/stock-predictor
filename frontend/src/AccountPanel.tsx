@@ -47,14 +47,24 @@ export default function AccountPanel({ user }: AccountPanelProps) {
     <div className="space-y-4 max-w-md mx-auto">
       <div className="rounded-xl border border-edge bg-card p-6">
         <h2 className="font-semibold text-lg mb-4">Account</h2>
-        <div className="text-[11px] uppercase tracking-wider text-ink-mute mb-0.5">
-          Login username
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-ink-mute mb-0.5">
+              Username
+            </div>
+            <div className="font-mono text-lg truncate">{user.username}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-ink-mute mb-0.5">
+              Login email
+            </div>
+            <div className="font-mono text-lg truncate">{user.email ?? '—'}</div>
+          </div>
         </div>
-        <div className="font-mono text-lg">{user.username}</div>
-        <p className="text-xs text-ink-mute mt-2 leading-relaxed">
-          You currently sign in with this username. Email-based login is
-          planned — when it lands you'll have both an email and a display
-          username.
+        <p className="text-xs text-ink-mute mt-3 leading-relaxed">
+          {user.email
+            ? 'You can log in with either your email or your username.'
+            : 'This account predates email login — you sign in with your username.'}
         </p>
       </div>
 
@@ -64,7 +74,7 @@ export default function AccountPanel({ user }: AccountPanelProps) {
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-2.5 mb-4 text-sm"
+            className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-2.5 mb-4 text-sm"
           >
             {error}
           </div>
@@ -72,7 +82,7 @@ export default function AccountPanel({ user }: AccountPanelProps) {
         {success && (
           <div
             role="status"
-            className="rounded-lg border border-emerald-800 bg-emerald-950/50 text-emerald-300 px-4 py-2.5 mb-4 text-sm"
+            className="rounded-lg border border-up-edge bg-up-bg text-up px-4 py-2.5 mb-4 text-sm"
           >
             Password updated. Use the new one next time you log in.
           </div>
@@ -133,7 +143,7 @@ export default function AccountPanel({ user }: AccountPanelProps) {
             disabled={busy}
             className="rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
                        disabled:cursor-not-allowed cursor-pointer px-5 py-2.5
-                       font-semibold text-surface transition-colors duration-200"
+                       font-semibold text-on-gold transition-colors duration-200"
           >
             {busy ? 'Updating…' : 'Update password'}
           </button>

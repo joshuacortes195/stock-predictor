@@ -18,14 +18,15 @@ const PAD_BOTTOM = 22
 const PAD_LEFT = 8
 const PAD_RIGHT = 64
 
-// Polarity colors validated for the dark card surface (dataviz six-checks
-// pass); direction is never color-alone — the header shows a signed %.
-const UP = '#059669'
-const DOWN = '#f43f5e'
-const FORECAST = '#f8fafc'
-const GRID = '#252e48'
-const AXIS_TEXT = '#93a4bc'
-const CARD = '#151b2c'
+// All chart colors route through the theme's CSS variables so light/dark
+// re-skin the SVG too; direction is never color-alone — the header shows a
+// signed %.
+const UP = 'var(--color-up-deep)'
+const DOWN = 'var(--color-down-deep)'
+const FORECAST = 'var(--color-forecast)'
+const GRID = 'var(--color-edge)'
+const AXIS_TEXT = 'var(--color-ink-mute)'
+const CARD = 'var(--color-card)'
 
 const RANGES = [
   { key: '1M', points: 21 },
@@ -108,8 +109,7 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
         <div>
           <span className="text-2xl font-semibold font-mono tabular-nums">${last.toFixed(2)}</span>
           <span
-            className="ml-2 text-sm font-medium tabular-nums"
-            style={{ color: change >= 0 ? '#34d399' : '#fb7185' }}
+            className={`ml-2 text-sm font-medium tabular-nums ${change >= 0 ? 'text-up' : 'text-down'}`}
           >
             {change >= 0 ? '+' : ''}{changePct.toFixed(2)}%
           </span>
@@ -164,8 +164,8 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
       >
         <defs>
           <linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.22 }} />
+            <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
           </linearGradient>
         </defs>
 
@@ -175,11 +175,11 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
             <line
               x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT}
               y1={geom.y(v)} y2={geom.y(v)}
-              stroke={GRID} strokeWidth="1"
+              style={{ stroke: GRID }} strokeWidth="1"
             />
             <text
               x={WIDTH - PAD_RIGHT + 8} y={geom.y(v) + 3.5}
-              fill={AXIS_TEXT} fontSize="11" fontFamily="ui-monospace, monospace"
+              style={{ fill: AXIS_TEXT }} fontSize="11" fontFamily="ui-monospace, monospace"
             >
               ${v.toFixed(2)}
             </text>
@@ -187,18 +187,18 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
         ))}
 
         <path d={geom.area} fill="url(#area-fill)" />
-        <path d={geom.line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        <path d={geom.line} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" />
         <path
           d={geom.forecastLine}
-          fill="none" stroke={FORECAST} strokeWidth="2"
+          fill="none" style={{ stroke: FORECAST }} strokeWidth="2"
           strokeDasharray="5 4" strokeLinejoin="round"
         />
 
         {/* first/last date labels, recessive */}
-        <text x={PAD_LEFT} y={HEIGHT - 6} fill={AXIS_TEXT} fontSize="11">
+        <text x={PAD_LEFT} y={HEIGHT - 6} style={{ fill: AXIS_TEXT }} fontSize="11">
           {formatDate(points[0].date)}
         </text>
-        <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 6} fill={AXIS_TEXT} fontSize="11" textAnchor="end">
+        <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 6} style={{ fill: AXIS_TEXT }} fontSize="11" textAnchor="end">
           {formatDate(points[points.length - 1].date)}
         </text>
 
@@ -207,21 +207,24 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
             <line
               x1={hoverX} x2={hoverX}
               y1={PAD_TOP} y2={HEIGHT - PAD_BOTTOM}
-              stroke="#475569" strokeWidth="1" strokeDasharray="3 3"
+              style={{ stroke: 'var(--color-ink-faint)' }} strokeWidth="1" strokeDasharray="3 3"
             />
             {/* 2px surface ring so the marker reads against the line */}
-            <circle cx={hoverX} cy={hoverY} r="5.5" fill={CARD} />
-            <circle cx={hoverX} cy={hoverY} r="4" fill={hover.projected ? FORECAST : color} />
+            <circle cx={hoverX} cy={hoverY} r="5.5" style={{ fill: CARD }} />
+            <circle cx={hoverX} cy={hoverY} r="4" style={{ fill: hover.projected ? FORECAST : color }} />
             <g transform={`translate(${tooltipOnLeft ? hoverX - 138 : hoverX + 10}, ${PAD_TOP})`}>
-              <rect width="128" height={hover.projected ? 54 : 40} rx="6" fill="#1b2338" stroke={GRID} />
-              <text x="10" y="17" fill="#edf0f7" fontSize="13" fontWeight="600" fontFamily="ui-monospace, monospace">
+              <rect
+                width="128" height={hover.projected ? 54 : 40} rx="6"
+                style={{ fill: 'var(--color-card-2)', stroke: GRID }}
+              />
+              <text x="10" y="17" style={{ fill: 'var(--color-ink)' }} fontSize="13" fontWeight="600" fontFamily="ui-monospace, monospace">
                 ${hover.close.toFixed(2)}
               </text>
-              <text x="10" y="32" fill={AXIS_TEXT} fontSize="11">
+              <text x="10" y="32" style={{ fill: AXIS_TEXT }} fontSize="11">
                 {formatDate(hover.date)}
               </text>
               {hover.projected && (
-                <text x="10" y="46" fill={AXIS_TEXT} fontSize="10" fontStyle="italic">
+                <text x="10" y="46" style={{ fill: AXIS_TEXT }} fontSize="10" fontStyle="italic">
                   projected
                 </text>
               )}

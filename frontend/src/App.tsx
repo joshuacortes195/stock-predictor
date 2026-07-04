@@ -60,10 +60,10 @@ const HORIZONS: { key: Horizon; label: string }[] = [
 
 const VERDICT_STYLES: Record<Signal['verdict'], string> = {
   no_edge: 'border-edge bg-card-2 text-ink',
-  weak_up: 'border-emerald-800 bg-emerald-950/50 text-emerald-300',
-  lean_up: 'border-emerald-700 bg-emerald-900/50 text-emerald-300',
-  weak_down: 'border-rose-800 bg-rose-950/50 text-rose-300',
-  lean_down: 'border-rose-700 bg-rose-900/50 text-rose-300',
+  weak_up: 'border-up-edge bg-up-bg text-up',
+  lean_up: 'border-up-edge bg-up-bg text-up',
+  weak_down: 'border-down-edge bg-down-bg text-down',
+  lean_down: 'border-down-edge bg-down-bg text-down',
 }
 
 const RECENTS_KEY = 'recentTickers'
@@ -84,6 +84,160 @@ const HASH_FOR_VIEW: Record<View, string> = {
   watchlist: '/watchlist',
   auth: '/login',
   account: '/account',
+}
+
+type Theme = 'dark' | 'light'
+
+function loadTheme(): Theme {
+  return localStorage.getItem('theme') === 'light' ? 'light' : 'dark'
+}
+
+function SunIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}
+
+function GearIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  )
+}
+
+function PersonIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+function SettingsMenu({
+  user,
+  theme,
+  onTheme,
+  onProfile,
+}: {
+  user: User | null
+  theme: Theme
+  onTheme: (t: Theme) => void
+  onProfile: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickAway(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickAway)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClickAway)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="flex items-center gap-1.5 px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm
+                   font-medium cursor-pointer border border-edge bg-card hover:bg-card-2
+                   transition-colors duration-200"
+      >
+        <GearIcon />
+        Settings
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="Settings"
+          className="pop-in absolute right-0 mt-2 w-64 rounded-xl border border-edge bg-card
+                     shadow-xl shadow-scrim p-2 z-20"
+        >
+          <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-ink-mute">
+            Appearance
+          </div>
+          <div
+            role="group"
+            aria-label="Theme"
+            className="mx-2 mb-2 grid grid-cols-2 gap-1 rounded-lg border border-edge bg-card-2 p-1"
+          >
+            {(
+              [
+                { key: 'light' as Theme, label: 'Light', icon: <SunIcon /> },
+                { key: 'dark' as Theme, label: 'Dark', icon: <MoonIcon /> },
+              ]
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => onTheme(t.key)}
+                aria-pressed={theme === t.key}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5
+                            pointer-coarse:py-2.5 text-sm font-medium cursor-pointer
+                            transition-colors duration-150 ${
+                  theme === t.key
+                    ? 'bg-card text-ink border border-edge shadow-sm'
+                    : 'text-ink-mute hover:text-ink border border-transparent'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {user && (
+            <>
+              <div className="mx-2 my-1 border-t border-edge" aria-hidden="true" />
+              <div className="px-3 py-1.5 text-xs text-ink-mute truncate">
+                Signed in as <span className="text-ink font-medium">{user.username}</span>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onProfile()
+                }}
+                className="w-full flex items-center gap-2 rounded-lg px-3 py-2 pointer-coarse:py-3
+                           text-sm text-left cursor-pointer hover:bg-card-2
+                           transition-colors duration-150"
+              >
+                <PersonIcon />
+                Profile settings
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -188,7 +342,7 @@ function ExplanationCard({ explanation }: { explanation: Explanation[] }) {
                   className="h-2 rounded-full"
                   style={{
                     width: `${width}%`,
-                    backgroundColor: isGlobal ? '#93a4bc' : positive ? '#059669' : '#f43f5e',
+                    backgroundColor: isGlobal ? 'var(--color-ink-mute)' : positive ? 'var(--color-up-deep)' : 'var(--color-down-deep)',
                   }}
                 />
               </div>
@@ -262,7 +416,13 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false)
   const [saved, setSaved] = useState<Set<string>>(new Set())
   const [view, setView] = useState<View>(viewFromHash)
+  const [theme, setTheme] = useState<Theme>(loadTheme)
   const boxRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   useEffect(() => {
     fetch('/api/tickers')
@@ -433,7 +593,8 @@ function App() {
         : view
 
   return (
-    <div className="min-h-dvh bg-surface text-ink flex flex-col items-center px-4 py-14">
+    <div className="min-h-dvh bg-surface app-bg text-ink flex flex-col items-center px-4 py-14
+                    transition-colors duration-300 motion-reduce:transition-none">
       <main className="w-full max-w-xl">
         <div className="flex items-center gap-2.5 mb-1">
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gold" aria-hidden="true" />
@@ -471,31 +632,21 @@ function App() {
             My watchlist{saved.size > 0 ? ` (${saved.size})` : ''}
           </button>
           <span className="flex-1" />
+          <SettingsMenu
+            user={user}
+            theme={theme}
+            onTheme={setTheme}
+            onProfile={() => go('account')}
+          />
           {user ? (
-            <>
-              <button
-                type="button"
-                onClick={() => go('account')}
-                aria-current={effectiveView === 'account' ? 'page' : undefined}
-                title="Account settings"
-                className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
-                            truncate max-w-36 transition-colors duration-200 ${
-                  effectiveView === 'account'
-                    ? 'bg-card-2 text-ink border border-edge'
-                    : 'text-ink-mute hover:text-ink border border-transparent'
-                }`}
-              >
-                {user.username}
-              </button>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
-                           bg-down-deep hover:bg-down text-white transition-colors duration-200"
-              >
-                Log out
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                         bg-down-deep hover:bg-down text-white transition-colors duration-200"
+            >
+              Log out
+            </button>
           ) : (
             <button
               type="button"
@@ -649,7 +800,7 @@ function App() {
             disabled={loading}
             className="rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
                        disabled:cursor-not-allowed cursor-pointer px-5 py-2.5
-                       font-semibold text-surface transition-colors duration-200"
+                       font-semibold text-on-gold transition-colors duration-200"
           >
             {loading ? 'Searching…' : 'Search'}
           </button>
@@ -682,7 +833,7 @@ function App() {
                           transition-colors duration-150 ${
                 saved.has(result.ticker)
                   ? 'text-gold border border-gold/50 bg-gold/10 hover:bg-gold/20'
-                  : 'bg-gold hover:bg-gold-hi text-surface'
+                  : 'bg-gold hover:bg-gold-hi text-on-gold'
               }`}
             >
               <StarIcon filled={saved.has(result.ticker)} />
@@ -708,7 +859,7 @@ function App() {
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-3 mb-6
+            className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-6
                        flex items-center justify-between gap-4"
           >
             <span>{error}</span>
@@ -716,8 +867,8 @@ function App() {
               <button
                 type="button"
                 onClick={() => void search(ticker)}
-                className="shrink-0 rounded-md border border-rose-700 px-3 py-1.5 pointer-coarse:py-3
-                           text-sm font-medium cursor-pointer hover:bg-rose-900/50
+                className="shrink-0 rounded-md border border-down-edge px-3 py-1.5 pointer-coarse:py-3
+                           text-sm font-medium cursor-pointer hover:bg-down-bg
                            transition-colors duration-150"
               >
                 Try again

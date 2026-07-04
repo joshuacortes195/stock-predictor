@@ -37,6 +37,10 @@ DB_PATH = Path(os.environ.get("APP_DB_PATH", ROOT / "data" / "app.db"))
 SECRET_KEY_PATH = ROOT / "data" / ".secret_key"
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
+# Pragmatic email shape check (full RFC validation is a losing game); stored
+# lowercased so the unique index is case-insensitive.
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_MAX = 254
 PASSWORD_MIN = 8
 PASSWORD_MAX = 128  # scrypt work scales with input length; cap it
 TICKER_RE = re.compile(r"^\^?[A-Z0-9][A-Z0-9.\-=]{0,9}$")
@@ -93,6 +97,16 @@ def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
+        # Migration: add email to databases created before email login.
+        # Nullable so pre-email accounts keep working (they log in by
+        # username until they add an email).
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+        if "email" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email"
+            " ON users(email) WHERE email IS NOT NULL"
+        )
 
 
 def get_db() -> sqlite3.Connection:
@@ -159,26 +173,33 @@ def register():
     if body is None:
         return jsonify({"error": "Expected a JSON body."}), 400
     username = str(body.get("username", "")).strip()
+    email = str(body.get("email", "")).strip().lower()
     password = str(body.get("password", ""))
     if not USERNAME_RE.fullmatch(username):
         return jsonify({"error": "Username must be 3–32 characters: letters, digits, underscore."}), 400
+    if len(email) > EMAIL_MAX or not EMAIL_RE.fullmatch(email):
+        return jsonify({"error": "That doesn't look like a valid email address."}), 400
     if not (PASSWORD_MIN <= len(password) <= PASSWORD_MAX):
         return jsonify({"error": f"Password must be {PASSWORD_MIN}–{PASSWORD_MAX} characters."}), 400
 
     db = get_db()
     try:
         cur = db.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (username, generate_password_hash(password)),
+            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+            (username, email, generate_password_hash(password)),
         )
         db.commit()
     except sqlite3.IntegrityError:
-        return jsonify({"error": "That username is taken."}), 409
+        taken = db.execute(
+            "SELECT 1 FROM users WHERE username = ?", (username,)
+        ).fetchone()
+        msg = "That username is taken." if taken else "That email is already registered."
+        return jsonify({"error": msg}), 409
 
     session.clear()
     session["uid"] = cur.lastrowid
     session.permanent = True
-    return jsonify({"username": username}), 201
+    return jsonify({"username": username, "email": email}), 201
 
 
 @bp.post("/api/auth/login")
@@ -188,22 +209,31 @@ def login():
     body = _json_body()
     if body is None:
         return jsonify({"error": "Expected a JSON body."}), 400
-    username = str(body.get("username", "")).strip()
+    # One field logs in by username or email ("identifier"; the old
+    # "username" key still works for API compatibility).
+    identifier = str(body.get("identifier", body.get("username", ""))).strip()
     password = str(body.get("password", ""))[:PASSWORD_MAX]
 
-    row = get_db().execute(
-        "SELECT id, username, password_hash FROM users WHERE username = ?", (username,)
-    ).fetchone()
+    if "@" in identifier:
+        row = get_db().execute(
+            "SELECT id, username, email, password_hash FROM users WHERE email = ?",
+            (identifier.lower(),),
+        ).fetchone()
+    else:
+        row = get_db().execute(
+            "SELECT id, username, email, password_hash FROM users WHERE username = ?",
+            (identifier,),
+        ).fetchone()
     if row is None:
         check_password_hash(_DUMMY_HASH, password)  # keep timing similar
-        return jsonify({"error": "Invalid username or password."}), 401
+        return jsonify({"error": "Invalid login or password."}), 401
     if not check_password_hash(row["password_hash"], password):
-        return jsonify({"error": "Invalid username or password."}), 401
+        return jsonify({"error": "Invalid login or password."}), 401
 
     session.clear()  # fresh session id: no fixation carry-over
     session["uid"] = row["id"]
     session.permanent = True
-    return jsonify({"username": row["username"]})
+    return jsonify({"username": row["username"], "email": row["email"]})
 
 
 @bp.post("/api/auth/logout")
@@ -250,11 +280,13 @@ def me():
     uid = current_user_id()
     if uid is None:
         return jsonify({"user": None})
-    row = get_db().execute("SELECT username FROM users WHERE id = ?", (uid,)).fetchone()
+    row = get_db().execute(
+        "SELECT username, email FROM users WHERE id = ?", (uid,)
+    ).fetchone()
     if row is None:  # user deleted since cookie was issued
         session.clear()
         return jsonify({"user": None})
-    return jsonify({"user": {"username": row["username"]}})
+    return jsonify({"user": {"username": row["username"], "email": row["email"]}})
 
 
 # ------------------------------------------------------------ watchlist

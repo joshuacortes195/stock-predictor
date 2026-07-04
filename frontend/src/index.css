@@ -1,9 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-/* Design tokens: deep-navy fintech surfaces with a gold accent (Swiss-minimal
-   dark theme). Data polarity colors are validated for CVD + contrast against
-   --color-card; see README design notes. */
+/* Design tokens. Dark (default): deep-navy fintech surfaces with a gold
+   accent. Light: warm porcelain/ivory — deliberately not a gray bootstrap
+   palette — with the same navy ink and a darkened gold for text contrast.
+   Every color the UI uses (including SVG charts and status boxes) routes
+   through these variables, so [data-theme] swaps restyle everything. */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
@@ -15,13 +17,52 @@
   --color-ink-mute: #93a4bc; /* secondary text (≥4.5:1 on card) */
   --color-ink-faint: #64748b; /* tertiary text, large sizes only */
 
-  --color-gold: #f59e0b; /* primary accent / CTA */
+  --color-gold: #f59e0b; /* primary accent / CTA fill */
   --color-gold-hi: #fbbf24; /* accent hover */
+  --color-on-gold: #241a04; /* text on gold fills (dark in both themes) */
 
-  --color-up: #34d399; /* positive text on dark cards */
+  --color-up: #34d399; /* positive text */
   --color-up-deep: #059669; /* positive chart marks */
-  --color-down: #fb7185; /* negative text on dark cards */
-  --color-down-deep: #f43f5e; /* negative chart marks */
+  --color-up-bg: #06251d; /* positive status-box fill */
+  --color-up-edge: #065f46; /* positive status-box border */
+  --color-down: #fb7185; /* negative text */
+  --color-down-deep: #f43f5e; /* negative chart marks / danger buttons */
+  --color-down-bg: #2b0d17; /* negative status-box fill */
+  --color-down-edge: #9f1239; /* negative status-box border */
+
+  --color-forecast: #f8fafc; /* dashed projection line */
+  --color-scrim: rgb(2 6 18 / 0.62); /* modal backdrop */
+}
+
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-surface: #f6f2e9; /* warm ivory, not gray */
+  --color-card: #fffdf7;
+  --color-card-2: #f0eadc;
+  --color-edge: #ddd3bf;
+  --color-ink: #1d2433; /* deep navy ink */
+  --color-ink-mute: #5d6474; /* ≥4.5:1 on card */
+  --color-ink-faint: #8d94a5;
+
+  --color-gold: #d97706; /* CTA fill — dark text keeps 4.5:1+ */
+  --color-gold-hi: #b45309; /* hover darkens in light mode */
+
+  --color-up: #047857;
+  --color-up-deep: #059669;
+  --color-up-bg: #e8f5ee;
+  --color-up-edge: #b3dcc7;
+  --color-down: #be123c;
+  --color-down-deep: #e11d48;
+  --color-down-bg: #fdedef;
+  --color-down-edge: #f2bcc7;
+
+  --color-forecast: #1e293b;
+  --color-scrim: rgb(29 36 51 / 0.45);
 }
 
 /* Keyboard users get the same gold focus treatment on every control, not
@@ -30,5 +71,35 @@
   button:focus-visible {
     outline: 2px solid var(--color-gold);
     outline-offset: 2px;
+  }
+}
+
+/* A quiet radial gold wash behind the header — the one decorative flourish;
+   color-mix keeps it derived from the theme's own accent. */
+.app-bg {
+  background-image: radial-gradient(
+    60rem 26rem at 50% -10rem,
+    color-mix(in oklab, var(--color-gold) 9%, transparent),
+    transparent 70%
+  );
+}
+
+/* Dialog + dropdown entrances (respecting reduced motion). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.pop-in {
+  animation: pop-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in {
+    animation: none;
   }
 }

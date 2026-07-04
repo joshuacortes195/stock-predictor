@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 
 export interface User {
   username: string
+  email: string | null
 }
 
 interface AuthPanelProps {
@@ -13,6 +14,7 @@ type Mode = 'login' | 'register'
 export default function AuthPanel({ onAuthed }: AuthPanelProps) {
   const [mode, setMode] = useState<Mode>('login')
   const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,16 +42,20 @@ export default function AuthPanel({ onAuthed }: AuthPanelProps) {
     setError(null)
     setBusy(true)
     try {
+      const payload =
+        mode === 'login'
+          ? { identifier: username, password }
+          : { username, email, password }
       const res = await fetch(`/api/auth/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data.error ?? 'Something went wrong.')
       } else {
-        onAuthed({ username: data.username })
+        onAuthed({ username: data.username, email: data.email ?? null })
       }
     } catch {
       setError('Could not reach the API. Is the Flask server running?')
@@ -74,33 +80,52 @@ export default function AuthPanel({ onAuthed }: AuthPanelProps) {
       </p>
 
       {error && (
-        <div role="alert" className="rounded-lg border border-rose-800 bg-rose-950/50 text-rose-300 px-4 py-2.5 mb-4 text-sm">
+        <div role="alert" className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-2.5 mb-4 text-sm">
           {error}
         </div>
       )}
 
       <form onSubmit={submit} className="space-y-4">
+        {mode === 'register' && (
+          <div>
+            <label htmlFor="auth-email" className="block text-sm font-medium mb-1.5">
+              Email
+            </label>
+            <input
+              id="auth-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={254}
+              required
+              className={inputClass}
+            />
+          </div>
+        )}
         <div>
           <label htmlFor="auth-username" className="block text-sm font-medium mb-1.5">
-            Username
+            {mode === 'login' ? 'Username or email' : 'Username'}
           </label>
           <input
             id="auth-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            onBlur={validateUsername}
+            onBlur={mode === 'register' ? validateUsername : undefined}
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
-            maxLength={32}
+            maxLength={mode === 'register' ? 32 : 254}
             required
             aria-invalid={!!fieldError.username}
             aria-describedby={fieldError.username ? 'auth-username-err' : undefined}
             className={inputClass}
           />
           {fieldError.username && (
-            <p id="auth-username-err" className="text-xs text-rose-300 mt-1.5">{fieldError.username}</p>
+            <p id="auth-username-err" className="text-xs text-down mt-1.5">{fieldError.username}</p>
           )}
         </div>
 
@@ -144,7 +169,7 @@ export default function AuthPanel({ onAuthed }: AuthPanelProps) {
           disabled={busy}
           className="w-full rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
                      disabled:cursor-not-allowed cursor-pointer px-5 py-2.5
-                     font-semibold text-surface transition-colors duration-200"
+                     font-semibold text-on-gold transition-colors duration-200"
         >
           {busy ? 'One moment…' : mode === 'login' ? 'Log in' : 'Sign up'}
         </button>

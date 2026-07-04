@@ -23,9 +23,14 @@ def client(tmp_path, monkeypatch):
     return api_app.app.test_client()
 
 
-def register(client, username="alice_1", password="correct horse"):
+def register(client, username="alice_1", password="correct horse", email=None):
     return client.post(
-        "/api/auth/register", json={"username": username, "password": password}
+        "/api/auth/register",
+        json={
+            "username": username,
+            "password": password,
+            "email": email if email is not None else f"{username.lower()}@example.com",
+        },
     )
 
 
@@ -63,6 +68,48 @@ def test_login_wrong_password_and_unknown_user_same_error(client):
     unknown = client.post("/api/auth/login", json={"username": "nobody_9", "password": "whatever12"})
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.get_json() == unknown.get_json()
+
+
+def test_login_by_email(client):
+    register(client, email="Alice@Example.COM")
+    client.post("/api/auth/logout", json={})
+    r = client.post(
+        "/api/auth/login",
+        json={"identifier": "alice@example.com", "password": "correct horse"},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["email"] == "alice@example.com"
+
+
+def test_register_rejects_bad_and_duplicate_emails(client):
+    for bad in ["not-an-email", "a@b", "has @spaces.com", ""]:
+        assert register(client, email=bad).status_code == 400, bad
+    assert register(client, email="alice@example.com").status_code == 201
+    r = register(client, username="bob_2", email="ALICE@example.com")
+    assert r.status_code == 409
+    assert "email" in r.get_json()["error"].lower()
+
+
+def test_legacy_user_without_email_can_still_login(client, tmp_path):
+    """Accounts created before the email migration have email = NULL."""
+    import sqlite3
+
+    from werkzeug.security import generate_password_hash
+
+    conn = sqlite3.connect(tmp_path / "test.db")
+    conn.execute(
+        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+        ("old_timer", generate_password_hash("legacy password")),
+    )
+    conn.commit()
+    conn.close()
+
+    r = client.post(
+        "/api/auth/login",
+        json={"identifier": "old_timer", "password": "legacy password"},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["email"] is None
 
 
 def test_auth_requires_json_body(client):
