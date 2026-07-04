@@ -134,29 +134,48 @@ npm run dev           # http://localhost:5173, proxies /api to the Flask server
 
 ## Deployment
 
-The repo deploys as a single free-tier web service on
-[Render](https://render.com) with accounts stored in a free
-[Neon](https://neon.tech) Postgres database (Render's free disk is wiped on
-every restart, so SQLite can't persist there). The multi-stage `Dockerfile`
-builds the React app with Node, then serves everything from one gunicorn
-process — same origin, so no CORS or cookie complications — and
-`render.yaml` is a Render Blueprint describing the service.
+One multi-stage `Dockerfile` serves every target: Node builds the React
+app, then a single gunicorn process serves both the API and the static
+frontend — same origin, so no CORS or cookie complications. Accounts live
+in a free [Neon](https://neon.tech) Postgres database (serverless/free-tier
+disks are ephemeral, so SQLite can't persist there); the app picks Postgres
+whenever `DATABASE_URL` is set and falls back to SQLite otherwise. Cloud
+schema is created automatically on first boot.
 
-1. **Neon** — create a free project, copy the *pooled* connection string
-   (`postgresql://…-pooler…/neondb?sslmode=require`).
-2. **Render** — New → Blueprint → point it at this GitHub repo. It reads
-   `render.yaml`, generates a `SECRET_KEY`, and prompts for `DATABASE_URL`;
-   paste the Neon string.
-3. That's it: the app is live at `https://<service>.onrender.com`. The
-   schema is created automatically on first boot.
+### AWS Lambda (primary — free indefinitely)
 
-Free-tier behavior: the service spins down after ~15 idle minutes and the
-first request after that takes ~1 minute to wake. Production knobs, all via
-env vars: `DATABASE_URL` (Postgres; unset = SQLite), `SECRET_KEY`,
+The image embeds the [AWS Lambda Web
+Adapter](https://github.com/awslabs/aws-lambda-web-adapter), so the same
+container runs as a Lambda function behind a public Function URL. Lambda's
+always-free tier (1M requests + 400k GB-seconds/month) covers demo traffic
+forever; the only real cost is ~$0.10/month of ECR image storage. Cold
+starts are a few seconds after idle periods.
+
+```bash
+# prereqs: Docker running, AWS CLI v2 (`aws configure`), Neon DATABASE_URL
+DATABASE_URL='postgresql://…' ./scripts/deploy_aws.sh
+```
+
+The script is idempotent: it creates the ECR repo, IAM role, function, and
+Function URL on first run, and just pushes the new image on later runs
+(reusing the deployed `SECRET_KEY` so sessions survive redeploys). It
+prints the public app URL when done.
+
+### Render (alternative — no credit card)
+
+`render.yaml` is a Render Blueprint for the same image: New → Blueprint →
+point Render at this repo, paste the Neon `DATABASE_URL` when prompted.
+Free-tier caveat: the service spins down after ~15 idle minutes and takes
+~1 minute to wake.
+
+### Configuration knobs
+
+All via env vars: `DATABASE_URL` (Postgres; unset = SQLite), `SECRET_KEY`,
 `COOKIE_SECURE=1` (HTTPS-only cookies), `TRUST_PROXY=1` (honor
 `X-Forwarded-For` from exactly one proxy hop so per-IP rate limiting sees
-real client IPs), `CORS_ORIGINS` (only needed if the frontend is served
-from a different origin).
+real client IPs), `WEB_CONCURRENCY` (gunicorn workers: 1 on Lambda, 2 on
+Render), `CORS_ORIGINS` (only needed if the frontend is served from a
+different origin).
 
 ## Results
 
