@@ -163,6 +163,22 @@ def _cached(cache: dict, ttl: float, fetch):
     return cache["value"]
 
 
+def _fetch_with_retry(fetch, attempts: int = 3, base_delay: float = 0.6):
+    """yfinance's first request after a cold start often fails transiently
+    while it bootstraps Yahoo session state (cookie/crumb); a short retry
+    absorbs that instead of surfacing a 502 the user has to retry by hand.
+    ValueError (unknown ticker) is the caller's 400 — never retried."""
+    for attempt in range(attempts):
+        try:
+            return fetch()
+        except ValueError:
+            raise
+        except Exception:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(base_delay * (attempt + 1))
+
+
 def _rate_limited(client_ip: str) -> bool:
     now = time.monotonic()
     window = _request_log[client_ip]
@@ -303,8 +319,12 @@ def predict():
         return jsonify({"error": f"Invalid horizon — use one of {sorted(MODELS)}."}), 400
 
     try:
-        history = fetch_recent_ohlcv(ticker, period="1y")
-        market = _cached(_market_cache, MARKET_TTL_SECONDS, lambda: fetch_market_context(period="1y"))
+        history = _fetch_with_retry(lambda: fetch_recent_ohlcv(ticker, period="1y"))
+        market = _cached(
+            _market_cache,
+            MARKET_TTL_SECONDS,
+            lambda: _fetch_with_retry(lambda: fetch_market_context(period="1y")),
+        )
         features = latest_feature_row(history, market)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

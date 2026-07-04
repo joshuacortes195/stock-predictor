@@ -3,6 +3,7 @@ import PriceChart, { type PricePoint } from './PriceChart'
 import AuthPanel, { type User } from './AuthPanel'
 import AccountPanel from './AccountPanel'
 import Watchlist from './Watchlist'
+import ConfirmDialog from './ConfirmDialog'
 
 interface Signal {
   verdict: 'no_edge' | 'weak_up' | 'weak_down' | 'lean_up' | 'lean_down'
@@ -127,16 +128,112 @@ function PersonIcon() {
   )
 }
 
+function SearchIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.35-4.35" />
+    </svg>
+  )
+}
+
+function BookmarkIcon({ size = 14, filled = false }: { size?: number; filled?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function InfoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  )
+}
+
+function AboutDialog({ onClose }: { onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeRef.current?.focus()
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="about-title"
+        className="pop-in w-full max-w-sm rounded-xl border border-edge bg-card p-6 shadow-xl shadow-scrim"
+      >
+        <h2 id="about-title" className="font-semibold text-lg mb-3">About this app</h2>
+        <div className="text-sm text-ink-mute space-y-3 leading-relaxed mb-5">
+          <p>
+            A personal project built to explore machine learning on financial
+            data — not a commercial service, and not financial advice.
+          </p>
+          <p>
+            Predictions come from models trained on ~10 years of daily S&amp;P 500
+            price history. Live prices, charts, and quotes are fetched from
+            Yahoo Finance via{' '}
+            <span className="font-mono text-ink">yfinance</span>.
+          </p>
+          <p>
+            Stock direction is close to a coin flip even for good models, so
+            treat every prediction as educational, never as a trade signal.
+          </p>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            ref={closeRef}
+            onClick={onClose}
+            className="rounded-lg border border-edge bg-card-2 hover:bg-edge px-4 py-2
+                       pointer-coarse:py-3 text-sm font-semibold cursor-pointer
+                       transition-colors duration-150"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SettingsMenu({
   user,
   theme,
   onTheme,
   onProfile,
+  onLogout,
+  onAbout,
 }: {
   user: User | null
   theme: Theme
   onTheme: (t: Theme) => void
   onProfile: () => void
+  onLogout: () => void
+  onAbout: () => void
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -164,12 +261,12 @@ function SettingsMenu({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="flex items-center gap-1.5 px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm
-                   font-medium cursor-pointer border border-edge bg-card hover:bg-card-2
-                   transition-colors duration-200"
+        aria-label="Settings"
+        title="Settings"
+        className="p-2 pointer-coarse:p-3 rounded-md cursor-pointer border border-edge
+                   bg-card hover:bg-card-2 transition-colors duration-200"
       >
         <GearIcon />
-        Settings
       </button>
 
       {open && (
@@ -232,8 +329,38 @@ function SettingsMenu({
                 <PersonIcon />
                 Profile settings
               </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false)
+                  onLogout()
+                }}
+                className="w-full flex items-center gap-2 rounded-lg px-3 py-2 pointer-coarse:py-3
+                           text-sm text-left cursor-pointer text-down hover:bg-down-bg
+                           transition-colors duration-150"
+              >
+                <LogoutIcon />
+                Log out
+              </button>
             </>
           )}
+
+          <div className="mx-2 my-1 border-t border-edge" aria-hidden="true" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onAbout()
+            }}
+            className="w-full flex items-center gap-2 rounded-lg px-3 py-2 pointer-coarse:py-3
+                       text-sm text-left cursor-pointer hover:bg-card-2
+                       transition-colors duration-150"
+          >
+            <InfoIcon />
+            About this app
+          </button>
         </div>
       )}
     </div>
@@ -417,6 +544,8 @@ function App() {
   const [saved, setSaved] = useState<Set<string>>(new Set())
   const [view, setView] = useState<View>(viewFromHash)
   const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -609,50 +738,48 @@ function App() {
           Search a ticker for a model-driven direction prediction.
         </p>
 
-        <nav aria-label="Main" className="flex items-center gap-1 mb-6 border-b border-edge pb-3">
+        <nav aria-label="Main" className="flex items-center gap-1.5 mb-6 border-b border-edge pb-3">
           <button
             type="button"
             onClick={() => go('search')}
             aria-current={effectiveView === 'search' ? 'page' : undefined}
-            className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+            aria-label="Search"
+            title="Search"
+            className={`p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                         transition-colors duration-200 ${
               effectiveView === 'search'
                 ? 'bg-card-2 text-ink border border-edge'
                 : 'text-ink-mute hover:text-ink border border-transparent'
             }`}
           >
-            Search
+            <SearchIcon size={18} />
           </button>
           <button
             type="button"
             onClick={() => go('watchlist')}
             aria-current={effectiveView === 'watchlist' ? 'page' : undefined}
-            className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+            aria-label={`My watchlist${saved.size > 0 ? `, ${saved.size} saved` : ''}`}
+            title="My watchlist"
+            className={`relative p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                         transition-colors duration-200 ${
               effectiveView === 'watchlist'
                 ? 'bg-card-2 text-ink border border-edge'
                 : 'text-ink-mute hover:text-ink border border-transparent'
             }`}
           >
-            My watchlist{saved.size > 0 ? ` (${saved.size})` : ''}
+            <BookmarkIcon size={18} filled={effectiveView === 'watchlist'} />
+            {saved.size > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-gold
+                           text-on-gold text-[10px] font-semibold flex items-center justify-center"
+              >
+                {saved.size}
+              </span>
+            )}
           </button>
           <span className="flex-1" />
-          <SettingsMenu
-            user={user}
-            theme={theme}
-            onTheme={setTheme}
-            onProfile={() => go('account')}
-          />
-          {user ? (
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
-                         bg-down-deep hover:bg-down text-white transition-colors duration-200"
-            >
-              Log out
-            </button>
-          ) : (
+          {!user && (
             <button
               type="button"
               onClick={() => go('auth')}
@@ -662,6 +789,14 @@ function App() {
               Log in
             </button>
           )}
+          <SettingsMenu
+            user={user}
+            theme={theme}
+            onTheme={setTheme}
+            onProfile={() => go('account')}
+            onLogout={() => setConfirmLogout(true)}
+            onAbout={() => setAboutOpen(true)}
+          />
         </nav>
 
         {effectiveView === 'auth' && (
@@ -803,11 +938,15 @@ function App() {
           <button
             type="submit"
             disabled={loading}
+            aria-label={loading ? 'Searching…' : 'Search'}
+            title="Search"
             className="rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
-                       disabled:cursor-not-allowed cursor-pointer px-5 py-2.5
-                       font-semibold text-on-gold transition-colors duration-200"
+                       disabled:cursor-not-allowed cursor-pointer px-4 py-2.5
+                       text-on-gold transition-colors duration-200"
           >
-            {loading ? 'Searching…' : 'Search'}
+            <span className={loading ? 'block animate-pulse motion-reduce:animate-none' : 'block'}>
+              <SearchIcon size={18} />
+            </span>
           </button>
         </form>
 
@@ -975,6 +1114,28 @@ function App() {
           </div>
         )}
         </div>
+
+        {confirmLogout && (
+          <ConfirmDialog
+            title="Log out?"
+            onContinue={() => {
+              setConfirmLogout(false)
+              void logout()
+            }}
+            onCancel={() => setConfirmLogout(false)}
+          >
+            You are about to log out
+            {user && (
+              <>
+                {' '}
+                of <span className="font-semibold text-ink">{user.username}</span>
+              </>
+            )}
+            . Your watchlist stays saved for when you come back.
+          </ConfirmDialog>
+        )}
+
+        {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       </main>
     </div>
   )

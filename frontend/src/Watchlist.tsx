@@ -1,70 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-function ConfirmRemoveDialog({
-  symbol,
-  onContinue,
-  onCancel,
-}: {
-  symbol: string
-  onContinue: () => void
-  onCancel: () => void
-}) {
-  const continueRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    continueRef.current?.focus()
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
-      onMouseDown={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-remove-title"
-        aria-describedby="confirm-remove-desc"
-        className="pop-in w-full max-w-sm rounded-xl border border-edge bg-card p-6 shadow-xl shadow-scrim"
-      >
-        <h2 id="confirm-remove-title" className="font-semibold text-lg mb-1.5">
-          Remove from watchlist?
-        </h2>
-        <p id="confirm-remove-desc" className="text-sm text-ink-mute mb-5 leading-relaxed">
-          You are about to remove{' '}
-          <span className="font-mono font-semibold text-ink">{symbol}</span> from your
-          watchlist. You can always save it again later.
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            ref={continueRef}
-            onClick={onContinue}
-            className="rounded-lg border border-edge bg-card-2 hover:bg-edge px-4 py-2
-                       pointer-coarse:py-3 text-sm font-semibold cursor-pointer
-                       transition-colors duration-150"
-          >
-            Continue
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg bg-down-deep hover:bg-down text-white px-4 py-2
-                       pointer-coarse:py-3 text-sm font-semibold cursor-pointer
-                       transition-colors duration-150"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+import ConfirmDialog from './ConfirmDialog'
 
 interface Quote {
   last: number
@@ -252,14 +187,18 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
       )}
 
       {pendingRemove && (
-        <ConfirmRemoveDialog
-          symbol={pendingRemove}
+        <ConfirmDialog
+          title="Remove from watchlist?"
           onContinue={() => {
             void remove(pendingRemove)
             setPendingRemove(null)
           }}
           onCancel={() => setPendingRemove(null)}
-        />
+        >
+          You are about to remove{' '}
+          <span className="font-mono font-semibold text-ink">{pendingRemove}</span> from your
+          watchlist. You can always save it again later.
+        </ConfirmDialog>
       )}
     </div>
   )
