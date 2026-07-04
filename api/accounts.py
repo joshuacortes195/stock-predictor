@@ -1,4 +1,9 @@
-"""User accounts + per-user watchlists on SQLite.
+"""User accounts + per-user watchlists.
+
+Storage is SQLite by default (local dev, tests); set DATABASE_URL to a
+Postgres URL for deployments where the local disk is ephemeral (e.g. Render
+free tier + Neon). Route code is backend-agnostic: it writes sqlite-style
+'?' placeholders and the thin Postgres shim translates them.
 
 Design notes (mirrors the hardening posture of app.py):
 - Passwords are hashed with Werkzeug's scrypt (salted, memory-hard); the
@@ -35,6 +40,16 @@ bp = Blueprint("accounts", __name__)
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("APP_DB_PATH", ROOT / "data" / "app.db"))
 SECRET_KEY_PATH = ROOT / "data" / ".secret_key"
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+USE_POSTGRES = bool(DATABASE_URL)
+if USE_POSTGRES:
+    import psycopg
+    from psycopg.rows import dict_row
+
+    IntegrityError = psycopg.IntegrityError
+else:
+    IntegrityError = sqlite3.IntegrityError
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 # Pragmatic email shape check (full RFC validation is a losing game); stored
@@ -91,8 +106,59 @@ CREATE TABLE IF NOT EXISTS watchlist (
 CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist(user_id, added_at DESC);
 """
 
+# Postgres equivalent of SCHEMA. CITEXT gives usernames the same
+# case-insensitive uniqueness + lookup semantics as SQLite's COLLATE NOCASE;
+# timestamps are stored as text so both backends return the same JSON shape.
+PG_SCHEMA = [
+    "CREATE EXTENSION IF NOT EXISTS citext",
+    """CREATE TABLE IF NOT EXISTS users (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        username CITEXT NOT NULL UNIQUE,
+        email TEXT,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (now()::text)
+    )""",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email"
+    " ON users(email) WHERE email IS NOT NULL",
+    """CREATE TABLE IF NOT EXISTS watchlist (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        symbol TEXT NOT NULL,
+        added_at TEXT NOT NULL DEFAULT (now()::text),
+        UNIQUE (user_id, symbol)
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_watchlist_user"
+    " ON watchlist(user_id, added_at DESC)",
+]
+
+
+class _PgConn:
+    """Wraps a psycopg connection so route code written against sqlite3's
+    API ('?' placeholders, conn.execute/commit/rollback/close) runs
+    unchanged on Postgres."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def execute(self, sql: str, params=()):
+        return self._raw.execute(sql.replace("?", "%s"), params)
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def close(self):
+        self._raw.close()
+
 
 def init_db() -> None:
+    if USE_POSTGRES:
+        with psycopg.connect(DATABASE_URL) as conn:
+            for stmt in PG_SCHEMA:
+                conn.execute(stmt)
+        return
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -109,11 +175,14 @@ def init_db() -> None:
         )
 
 
-def get_db() -> sqlite3.Connection:
+def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys=ON")
+        if USE_POSTGRES:
+            g.db = _PgConn(psycopg.connect(DATABASE_URL, row_factory=dict_row))
+        else:
+            g.db = sqlite3.connect(DB_PATH)
+            g.db.row_factory = sqlite3.Row
+            g.db.execute("PRAGMA foreign_keys=ON")
     return g.db
 
 
@@ -184,12 +253,14 @@ def register():
 
     db = get_db()
     try:
-        cur = db.execute(
-            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+        row = db.execute(
+            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
+            " RETURNING id",
             (username, email, generate_password_hash(password)),
-        )
+        ).fetchone()
         db.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
+        db.rollback()  # Postgres aborts the transaction; reset before SELECT
         taken = db.execute(
             "SELECT 1 FROM users WHERE username = ?", (username,)
         ).fetchone()
@@ -197,7 +268,7 @@ def register():
         return jsonify({"error": msg}), 409
 
     session.clear()
-    session["uid"] = cur.lastrowid
+    session["uid"] = int(row["id"])
     session.permanent = True
     return jsonify({"username": username, "email": email}), 201
 
@@ -384,7 +455,8 @@ def watchlist_add():
             "INSERT INTO watchlist (user_id, symbol) VALUES (?, ?)", (uid, symbol)
         )
         db.commit()
-    except sqlite3.IntegrityError:
+    except IntegrityError:
+        db.rollback()
         return jsonify({"error": "Already on your watchlist.", "symbol": symbol}), 409
     return jsonify({"ok": True, "symbol": symbol}), 201
 

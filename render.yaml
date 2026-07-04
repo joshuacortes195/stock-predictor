@@ -1,0 +1,20 @@
+# Render blueprint: deploys the whole app (API + built frontend) as one
+# free-tier Docker web service. On first deploy Render prompts for the
+# DATABASE_URL value (Neon Postgres connection string).
+services:
+  - type: web
+    name: stock-predictor
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true # stable session-cookie signing across restarts
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string in the dashboard
+      - key: COOKIE_SECURE
+        value: "1" # Render terminates TLS, so cookies can require HTTPS
+      - key: TRUST_PROXY
+        value: "1" # trust X-Forwarded-For from Render's proxy
+      - key: WEB_CONCURRENCY
+        value: "2"

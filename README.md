@@ -116,7 +116,8 @@ rate-limits per IP, and returns generic errors instead of tracebacks.
 Dependencies are pinned in `requirements.txt` and audited with `pip-audit`.
 
 Accounts live in `data/app.db` (SQLite, created on first run alongside a
-0600 session-signing key at `data/.secret_key`; both gitignored). Set
+0600 session-signing key at `data/.secret_key`; both gitignored), or in
+Postgres when `DATABASE_URL` is set — see [Deployment](#deployment). Set
 `SECRET_KEY` to override the key file and `COOKIE_SECURE=1` when serving
 over TLS. Auth endpoints: `POST /api/auth/register|login|logout`,
 `GET /api/auth/me`; watchlist: `GET/POST /api/watchlist`,
@@ -130,6 +131,32 @@ cd frontend
 npm install
 npm run dev           # http://localhost:5173, proxies /api to the Flask server
 ```
+
+## Deployment
+
+The repo deploys as a single free-tier web service on
+[Render](https://render.com) with accounts stored in a free
+[Neon](https://neon.tech) Postgres database (Render's free disk is wiped on
+every restart, so SQLite can't persist there). The multi-stage `Dockerfile`
+builds the React app with Node, then serves everything from one gunicorn
+process — same origin, so no CORS or cookie complications — and
+`render.yaml` is a Render Blueprint describing the service.
+
+1. **Neon** — create a free project, copy the *pooled* connection string
+   (`postgresql://…-pooler…/neondb?sslmode=require`).
+2. **Render** — New → Blueprint → point it at this GitHub repo. It reads
+   `render.yaml`, generates a `SECRET_KEY`, and prompts for `DATABASE_URL`;
+   paste the Neon string.
+3. That's it: the app is live at `https://<service>.onrender.com`. The
+   schema is created automatically on first boot.
+
+Free-tier behavior: the service spins down after ~15 idle minutes and the
+first request after that takes ~1 minute to wake. Production knobs, all via
+env vars: `DATABASE_URL` (Postgres; unset = SQLite), `SECRET_KEY`,
+`COOKIE_SECURE=1` (HTTPS-only cookies), `TRUST_PROXY=1` (honor
+`X-Forwarded-For` from exactly one proxy hop so per-IP rate limiting sees
+real client IPs), `CORS_ORIGINS` (only needed if the frontend is served
+from a different origin).
 
 ## Results
 

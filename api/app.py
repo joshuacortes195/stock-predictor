@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import joblib
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from werkzeug.exceptions import NotFound
+from werkzeug.middleware.proxy_fix import ProxyFix
 from sklearn.linear_model import LogisticRegression
 
 from stock_predictor.data import fetch_market_context, fetch_recent_ohlcv, get_sp500_constituents
@@ -100,6 +102,13 @@ ALLOWED_ORIGINS = [
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
+# Behind a TLS-terminating proxy (e.g. Render), trust one hop of
+# X-Forwarded-* so request.remote_addr is the real client IP (the per-IP
+# rate limits depend on it). Opt-in: trusting these headers when there is
+# no proxy would let clients spoof their IP.
+if os.environ.get("TRUST_PROXY", "0") == "1":
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
 # --- accounts & watchlist (see api/accounts.py for the security notes) ---
 # Imported both as the package `api.app` (tests) and as a script (server).
 try:
@@ -122,8 +131,29 @@ app.register_blueprint(accounts_bp)
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Cache-Control"] = "no-store"
+    if request.path.startswith("/assets/"):
+        # Vite content-hashes bundle filenames, so they can cache forever.
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# In production the built React app is served by Flask from frontend/dist
+# (single origin: no CORS, cookies just work). In dev the Vite server owns
+# the frontend and proxies /api here, so this block is skipped unless a
+# build exists. Explicit /api routes outrank the catch-all; unknown paths
+# fall back to index.html so client-side routes deep-link correctly.
+FRONTEND_DIST = ROOT / "frontend" / "dist"
+if (FRONTEND_DIST / "index.html").is_file():
+
+    @app.get("/", defaults={"asset": "index.html"})
+    @app.get("/<path:asset>")
+    def spa(asset: str):
+        try:
+            return send_from_directory(FRONTEND_DIST, asset)
+        except NotFound:
+            return send_from_directory(FRONTEND_DIST, "index.html")
 
 
 def _cached(cache: dict, ttl: float, fetch):
