@@ -77,6 +77,41 @@ def test_auth_rate_limit(client):
     assert r.status_code == 429
 
 
+def test_change_password(client):
+    register(client)
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "wrong guess!", "new_password": "a whole new pw"},
+    )
+    assert r.status_code == 401
+
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "correct horse", "new_password": "short"},
+    )
+    assert r.status_code == 400
+
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "correct horse", "new_password": "a whole new pw"},
+    )
+    assert r.status_code == 200
+
+    client.post("/api/auth/logout", json={})
+    old = client.post("/api/auth/login", json={"username": "alice_1", "password": "correct horse"})
+    assert old.status_code == 401
+    new = client.post("/api/auth/login", json={"username": "alice_1", "password": "a whole new pw"})
+    assert new.status_code == 200
+
+
+def test_change_password_requires_login(client):
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "x" * 8, "new_password": "y" * 8},
+    )
+    assert r.status_code == 401
+
+
 def test_password_is_stored_hashed(client, tmp_path):
     register(client, password="super secret pw")
     import sqlite3

@@ -216,6 +216,35 @@ def logout():
     return jsonify({"ok": True})
 
 
+@bp.post("/api/auth/change-password")
+@login_required
+def change_password():
+    # Same limiter as login: this endpoint also verifies a password guess.
+    if _auth_rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Too many attempts — try again in a minute."}), 429
+    body = _json_body()
+    if body is None:
+        return jsonify({"error": "Expected a JSON body."}), 400
+    current = str(body.get("current_password", ""))[:PASSWORD_MAX]
+    new = str(body.get("new_password", ""))
+    if not (PASSWORD_MIN <= len(new) <= PASSWORD_MAX):
+        return jsonify({"error": f"New password must be {PASSWORD_MIN}–{PASSWORD_MAX} characters."}), 400
+
+    db = get_db()
+    row = db.execute(
+        "SELECT password_hash FROM users WHERE id = ?", (current_user_id(),)
+    ).fetchone()
+    if row is None or not check_password_hash(row["password_hash"], current):
+        return jsonify({"error": "Current password is incorrect."}), 401
+
+    db.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (generate_password_hash(new), current_user_id()),
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
 @bp.get("/api/auth/me")
 def me():
     uid = current_user_id()

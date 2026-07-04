@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import PriceChart, { type PricePoint } from './PriceChart'
 import AuthPanel, { type User } from './AuthPanel'
+import AccountPanel from './AccountPanel'
 import Watchlist from './Watchlist'
 
 interface Signal {
@@ -68,13 +69,21 @@ const VERDICT_STYLES: Record<Signal['verdict'], string> = {
 const RECENTS_KEY = 'recentTickers'
 const MAX_RECENTS = 5
 
-type View = 'search' | 'watchlist' | 'auth'
+type View = 'search' | 'watchlist' | 'auth' | 'account'
 
 function viewFromHash(): View {
   const h = window.location.hash
   if (h.startsWith('#/watchlist')) return 'watchlist'
-  if (h.startsWith('#/account')) return 'auth'
+  if (h.startsWith('#/login')) return 'auth'
+  if (h.startsWith('#/account')) return 'account'
   return 'search'
+}
+
+const HASH_FOR_VIEW: Record<View, string> = {
+  search: '',
+  watchlist: '/watchlist',
+  auth: '/login',
+  account: '/account',
 }
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -290,7 +299,7 @@ function App() {
   }, [user])
 
   function go(v: View) {
-    window.location.hash = v === 'search' ? '' : v === 'watchlist' ? '/watchlist' : '/account'
+    window.location.hash = HASH_FOR_VIEW[v]
   }
 
   async function toggleSave(symbol: string) {
@@ -415,11 +424,11 @@ function App() {
     if (result) void search(result.ticker, h)
   }
 
-  // The watchlist needs a login; a logged-in user never needs the auth view.
+  // Watchlist/account need a login; a logged-in user never needs the auth view.
   const effectiveView: View =
     view === 'auth' && user
-      ? 'watchlist'
-      : view === 'watchlist' && !user && authChecked
+      ? 'account'
+      : (view === 'watchlist' || view === 'account') && !user && authChecked
         ? 'auth'
         : view
 
@@ -464,12 +473,25 @@ function App() {
           <span className="flex-1" />
           {user ? (
             <>
-              <span className="text-sm text-ink-mute mr-1 truncate max-w-32">{user.username}</span>
+              <button
+                type="button"
+                onClick={() => go('account')}
+                aria-current={effectiveView === 'account' ? 'page' : undefined}
+                title="Account settings"
+                className={`px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
+                            truncate max-w-36 transition-colors duration-200 ${
+                  effectiveView === 'account'
+                    ? 'bg-card-2 text-ink border border-edge'
+                    : 'text-ink-mute hover:text-ink border border-transparent'
+                }`}
+              >
+                {user.username}
+              </button>
               <button
                 type="button"
                 onClick={() => void logout()}
                 className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
-                           text-ink-mute hover:text-ink transition-colors duration-200"
+                           bg-down-deep hover:bg-down text-white transition-colors duration-200"
               >
                 Log out
               </button>
@@ -494,6 +516,8 @@ function App() {
             }}
           />
         )}
+
+        {effectiveView === 'account' && user && <AccountPanel user={user} />}
 
         {effectiveView === 'watchlist' && user && (
           <Watchlist
@@ -631,7 +655,7 @@ function App() {
           </button>
         </form>
 
-        <div className="flex gap-1 mb-6" role="group" aria-label="Prediction horizon">
+        <div className="flex items-center gap-1 mb-6" role="group" aria-label="Prediction horizon">
           {HORIZONS.map((h) => (
             <button
               key={h.key}
@@ -648,6 +672,27 @@ function App() {
               {h.label}
             </button>
           ))}
+          {result && (
+            <button
+              type="button"
+              onClick={() => void toggleSave(result.ticker)}
+              aria-pressed={saved.has(result.ticker)}
+              className={`ml-auto flex items-center gap-1.5 rounded-md px-3.5 py-1.5
+                          pointer-coarse:py-3 text-sm font-semibold cursor-pointer
+                          transition-colors duration-150 ${
+                saved.has(result.ticker)
+                  ? 'text-gold border border-gold/50 bg-gold/10 hover:bg-gold/20'
+                  : 'bg-gold hover:bg-gold-hi text-surface'
+              }`}
+            >
+              <StarIcon filled={saved.has(result.ticker)} />
+              {saved.has(result.ticker)
+                ? `Saved ${result.ticker}`
+                : user
+                  ? `Save ${result.ticker}`
+                  : `Save ${result.ticker} (log in)`}
+            </button>
+          )}
         </div>
 
         {/* Screen-reader announcements for async state; visual users get the
@@ -725,25 +770,8 @@ function App() {
             )}
 
             <Card>
-              <div className="flex items-center justify-between mb-4 gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-xl font-mono">{result.ticker}</span>
-                  <button
-                    type="button"
-                    onClick={() => void toggleSave(result.ticker)}
-                    aria-pressed={saved.has(result.ticker)}
-                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5
-                                pointer-coarse:py-2.5 text-xs font-medium cursor-pointer
-                                transition-colors duration-150 ${
-                      saved.has(result.ticker)
-                        ? 'text-gold border-gold/50 bg-gold/10'
-                        : 'text-ink-mute border-edge hover:text-ink hover:bg-card-2'
-                    }`}
-                  >
-                    <StarIcon filled={saved.has(result.ticker)} />
-                    {saved.has(result.ticker) ? 'Saved' : user ? 'Save' : 'Save (log in)'}
-                  </button>
-                </div>
+              <div className="flex items-baseline justify-between mb-4 gap-3">
+                <span className="text-xl font-mono">{result.ticker}</span>
                 <span className="text-sm text-ink-mute shrink-0">
                   {result.horizon_label} · as of {result.as_of_date}
                 </span>
