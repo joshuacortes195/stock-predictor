@@ -123,14 +123,37 @@ app.config.update(
     # Local demo runs over plain http; set COOKIE_SECURE=1 behind TLS.
     SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "0") == "1",
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,  # 30 days
+    # Largest legitimate body is a small auth/watchlist JSON payload;
+    # anything bigger is garbage and gets a 413 before it's parsed.
+    MAX_CONTENT_LENGTH=16 * 1024,
 )
 init_db()
 app.register_blueprint(accounts_bp)
 
 
+# Script injection backstop: only same-origin scripts run, nothing frames
+# the app (clickjacking), forms can't post off-site. Google Fonts is the
+# one external dependency the stylesheet pulls in; 'unsafe-inline' styles
+# are required by React's style={} props (attributes only — <style>/<link>
+# injection still can't execute script under script-src 'self').
+CSP = (
+    "default-src 'self'; script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src https://fonts.gstatic.com; img-src 'self' data:; "
+    "connect-src 'self'; object-src 'none'; frame-ancestors 'none'; "
+    "base-uri 'none'; form-action 'self'"
+)
+
+
 @app.after_request
 def set_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = CSP
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if app.config["SESSION_COOKIE_SECURE"]:  # only meaningful behind TLS
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     if request.path.startswith("/assets/"):
         # Vite content-hashes bundle filenames, so they can cache forever.
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
@@ -181,6 +204,14 @@ def _fetch_with_retry(fetch, attempts: int = 3, base_delay: float = 0.6):
 
 def _rate_limited(client_ip: str) -> bool:
     now = time.monotonic()
+    # Evict idle IPs so an attacker rotating addresses can't grow this map
+    # without bound (each new IP otherwise leaves a permanent entry).
+    if len(_request_log) > 4096:
+        for ip in [
+            k for k, w in _request_log.items()
+            if not w or now - w[-1] > RATE_LIMIT_WINDOW_SECONDS
+        ]:
+            del _request_log[ip]
     window = _request_log[client_ip]
     while window and now - window[0] > RATE_LIMIT_WINDOW_SECONDS:
         window.popleft()

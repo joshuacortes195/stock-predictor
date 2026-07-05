@@ -19,6 +19,7 @@ Design notes (mirrors the hardening posture of app.py):
   timing similar).
 """
 
+import hashlib
 import logging
 import os
 import re
@@ -195,6 +196,14 @@ def close_db(_exc):
 
 def _auth_rate_limited(client_ip: str) -> bool:
     now = time.monotonic()
+    # Evict idle IPs so an attacker rotating addresses can't grow this map
+    # without bound (each new IP otherwise leaves a permanent entry).
+    if len(_auth_log) > 4096:
+        for ip in [
+            k for k, w in _auth_log.items()
+            if not w or now - w[-1] > AUTH_LIMIT_WINDOW_SECONDS
+        ]:
+            del _auth_log[ip]
     window = _auth_log[client_ip]
     while window and now - window[0] > AUTH_LIMIT_WINDOW_SECONDS:
         window.popleft()
@@ -219,12 +228,36 @@ def current_user_id() -> int | None:
     return uid if isinstance(uid, int) else None
 
 
+def _session_token(password_hash: str) -> str:
+    """Session-revocation fingerprint. Changing the password changes this,
+    which kills every previously issued cookie (signed cookies can't be
+    revoked server-side otherwise). A derived digest, not the hash itself:
+    session cookies are signed but client-readable."""
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def _session_user_row():
+    """The logged-in user's row, or None if the session is stale — the
+    account was deleted, or the password changed after the cookie was
+    issued. Stale sessions are cleared on sight."""
+    uid = current_user_id()
+    if uid is None:
+        return None
+    row = get_db().execute(
+        "SELECT id, username, email, password_hash FROM users WHERE id = ?", (uid,)
+    ).fetchone()
+    if row is None or session.get("pwt") != _session_token(row["password_hash"]):
+        session.clear()
+        return None
+    return row
+
+
 def login_required(view):
     from functools import wraps
 
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if current_user_id() is None:
+        if _session_user_row() is None:
             return jsonify({"error": "Please log in first."}), 401
         return view(*args, **kwargs)
 
@@ -251,12 +284,13 @@ def register():
     if not (PASSWORD_MIN <= len(password) <= PASSWORD_MAX):
         return jsonify({"error": f"Password must be {PASSWORD_MIN}–{PASSWORD_MAX} characters."}), 400
 
+    pw_hash = generate_password_hash(password)
     db = get_db()
     try:
         row = db.execute(
             "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)"
             " RETURNING id",
-            (username, email, generate_password_hash(password)),
+            (username, email, pw_hash),
         ).fetchone()
         db.commit()
     except IntegrityError:
@@ -269,6 +303,7 @@ def register():
 
     session.clear()
     session["uid"] = int(row["id"])
+    session["pwt"] = _session_token(pw_hash)
     session.permanent = True
     return jsonify({"username": username, "email": email}), 201
 
@@ -303,6 +338,7 @@ def login():
 
     session.clear()  # fresh session id: no fixation carry-over
     session["uid"] = row["id"]
+    session["pwt"] = _session_token(row["password_hash"])
     session.permanent = True
     return jsonify({"username": row["username"], "email": row["email"]})
 
@@ -338,24 +374,21 @@ def change_password():
     if row is None or not check_password_hash(row["password_hash"], current):
         return jsonify({"error": "Current password is incorrect."}), 401
 
+    new_hash = generate_password_hash(new)
     db.execute(
         "UPDATE users SET password_hash = ? WHERE id = ?",
-        (generate_password_hash(new), current_user_id()),
+        (new_hash, current_user_id()),
     )
     db.commit()
+    # Every other session dies with the old password; this one stays valid.
+    session["pwt"] = _session_token(new_hash)
     return jsonify({"ok": True})
 
 
 @bp.get("/api/auth/me")
 def me():
-    uid = current_user_id()
-    if uid is None:
-        return jsonify({"user": None})
-    row = get_db().execute(
-        "SELECT username, email FROM users WHERE id = ?", (uid,)
-    ).fetchone()
-    if row is None:  # user deleted since cookie was issued
-        session.clear()
+    row = _session_user_row()
+    if row is None:
         return jsonify({"user": None})
     return jsonify({"user": {"username": row["username"], "email": row["email"]}})
 

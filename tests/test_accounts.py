@@ -151,6 +151,24 @@ def test_change_password(client):
     assert new.status_code == 200
 
 
+def test_password_change_invalidates_other_sessions(client):
+    """A stolen or forgotten cookie must die when the password changes."""
+    register(client)
+    other = api_app.app.test_client()
+    other.post("/api/auth/login", json={"username": "alice_1", "password": "correct horse"})
+    assert other.get("/api/watchlist").status_code == 200
+
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "correct horse", "new_password": "a whole new pw"},
+    )
+    assert r.status_code == 200
+    # the other device's session is revoked...
+    assert other.get("/api/watchlist").status_code == 401
+    # ...but the session that changed the password stays logged in
+    assert client.get("/api/watchlist").status_code == 200
+
+
 def test_change_password_requires_login(client):
     r = client.post(
         "/api/auth/change-password",

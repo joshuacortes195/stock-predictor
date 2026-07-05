@@ -21,6 +21,12 @@ COPY --from=frontend /build/dist frontend/dist/
 # Outside Lambda (Render, local docker) the file is inert.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 
+# Drop root: the app only needs read access to code and models, plus a
+# writable data/ for the SQLite + keyfile fallback when DATABASE_URL or
+# SECRET_KEY are unset.
+RUN useradd --create-home appuser && mkdir -p data && chown appuser:appuser data
+USER appuser
+
 # PORT=8080 is the adapter's default; Render overrides PORT at runtime.
 # WEB_CONCURRENCY: 1 on Lambda (one request per instance), 2 on Render.
 ENV PYTHONUNBUFFERED=1 PORT=8080
