@@ -10,8 +10,10 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -26,6 +28,13 @@ from sklearn.linear_model import LogisticRegression
 
 from stock_predictor.data import fetch_market_context, fetch_recent_ohlcv, get_sp500_constituents
 from stock_predictor.features import FEATURE_COLUMNS, HORIZON_DAYS, latest_feature_row
+
+try:
+    from . import sectors  # noqa: E402
+    from .sectors import get_sector  # noqa: E402
+except ImportError:
+    import sectors  # noqa: E402
+    from sectors import get_sector  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = {
@@ -89,6 +98,25 @@ MARKET_TTL_SECONDS = 15 * 60
 TICKERS_TTL_SECONDS = 24 * 60 * 60
 _market_cache: dict = {"value": None, "at": 0.0}
 _tickers_cache: dict = {"value": None, "at": 0.0}
+
+# A small, diversified, highly-liquid slice of the S&P 500 (spans every major
+# GICS sector) that backs the "stocks to watch" page. Scanning the full index
+# on every request would mean 500+ yfinance calls per cache refresh; this
+# curated list keeps that bounded while still surfacing a real cross-section.
+MOVERS_UNIVERSE = [
+    "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "AVGO", "ORCL", "CRM",
+    "ADBE", "AMD", "CSCO", "INTC", "QCOM",
+    "JPM", "V", "MA", "BAC", "GS",
+    "UNH", "JNJ", "PFE", "ABBV", "LLY",
+    "HD", "WMT", "PG", "KO", "PEP", "MCD", "NKE",
+    "XOM", "CVX",
+    "BA", "CAT", "GE",
+    "NFLX", "DIS", "T",
+    "NEE", "PLD",
+]
+MOVERS_TTL_SECONDS = 30 * 60
+_movers_cache: dict[str, dict] = {}
+_movers_lock = threading.Lock()
 
 # Comma-separated allowlist; defaults to the local Vite dev server.
 ALLOWED_ORIGINS = [
@@ -318,9 +346,70 @@ def forecast_path(history: pd.DataFrame, proba_up: float, horizon: str) -> list[
     return path
 
 
+def _predict_one_for_movers(ticker: str, horizon: str) -> dict | None:
+    """Same feature -> model -> probability path as /api/predict, trimmed to
+    what the movers list needs. Returns None on any per-ticker failure (a
+    delisted symbol, a thin history) so one bad name can't sink the batch."""
+    try:
+        history = fetch_recent_ohlcv(ticker, period="6mo")
+        market = _cached(
+            _market_cache,
+            MARKET_TTL_SECONDS,
+            lambda: _fetch_with_retry(lambda: fetch_market_context(period="1y")),
+        )
+        features = latest_feature_row(history, market)
+        model = MODELS[horizon]
+        proba_up = float(model.predict_proba(features.to_frame().T)[0, 1])
+        return {
+            "ticker": ticker,
+            "sector": get_sector(ticker) or sectors.UNCATEGORIZED,
+            "prediction": "up" if proba_up >= 0.5 else "down",
+            "probability_up": round(proba_up, 4),
+            "confidence": round(proba_up if proba_up >= 0.5 else 1 - proba_up, 4),
+            "signal": investment_signal(proba_up, horizon),
+        }
+    except Exception:
+        return None
+
+
+def compute_movers(horizon: str) -> list[dict]:
+    """Rank the movers universe by P(up) for `horizon` and return the
+    top bullish names — "stocks predicted to rise soon"."""
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        results = list(
+            pool.map(lambda t: _predict_one_for_movers(t, horizon), MOVERS_UNIVERSE)
+        )
+    ranked = sorted(
+        (r for r in results if r and r["prediction"] == "up"),
+        key=lambda r: r["probability_up"],
+        reverse=True,
+    )
+    return ranked[:15]
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.get("/api/movers")
+def movers():
+    horizon = request.args.get("horizon", "1d").strip().lower()
+    if horizon not in MODELS:
+        return jsonify({"error": f"Invalid horizon — use one of {sorted(MODELS)}."}), 400
+
+    with _movers_lock:
+        entry = _movers_cache.get(horizon)
+        if entry is None or time.monotonic() - entry["at"] > MOVERS_TTL_SECONDS:
+            entry = {"value": compute_movers(horizon), "at": time.monotonic()}
+            _movers_cache[horizon] = entry
+
+    return jsonify({
+        "horizon": horizon,
+        "horizon_label": HORIZON_LABELS[horizon],
+        "movers": entry["value"],
+        "updated_seconds_ago": int(time.monotonic() - entry["at"]),
+    })
 
 
 @app.get("/api/metrics")
@@ -378,6 +467,7 @@ def predict():
 
     return jsonify({
         "ticker": ticker,
+        "sector": get_sector(ticker) or sectors.UNCATEGORIZED,
         "as_of_date": str(history["date"].max().date()),
         "horizon": horizon,
         "horizon_label": HORIZON_LABELS[horizon],

@@ -203,10 +203,12 @@ def test_watchlist_add_list_remove(client):
     assert client.post("/api/watchlist", json={"symbol": "AAPL"}).status_code == 409
     assert client.post("/api/watchlist", json={"symbol": "not a ticker!"}).status_code == 400
 
-    with patch.object(accounts, "_fetch_quote", return_value=None):
+    with patch.object(accounts, "_fetch_quote", return_value=None), \
+         patch.object(accounts, "get_sector", return_value="Information Technology"):
         data = client.get("/api/watchlist").get_json()
     assert data["total"] == 1
     assert data["items"][0]["symbol"] == "AAPL"
+    assert data["items"][0]["sector"] == "Information Technology"
     assert data["has_more"] is False
 
     assert client.delete("/api/watchlist/AAPL").status_code == 200
@@ -217,7 +219,8 @@ def test_watchlist_pagination(client):
     register(client)
     for i in range(12):
         client.post("/api/watchlist", json={"symbol": f"T{i}"})
-    with patch.object(accounts, "_fetch_quote", return_value=None):
+    with patch.object(accounts, "_fetch_quote", return_value=None), \
+         patch.object(accounts, "get_sector", return_value=None):
         page1 = client.get("/api/watchlist?offset=0&limit=10").get_json()
         page2 = client.get("/api/watchlist?offset=10&limit=10").get_json()
     assert page1["total"] == 12 and len(page1["items"]) == 10 and page1["has_more"]
@@ -233,7 +236,8 @@ def test_watchlists_are_per_user(client):
 
     register(client, username="bob_2")
     client.post("/api/watchlist", json={"symbol": "QCOM"})
-    with patch.object(accounts, "_fetch_quote", return_value=None):
+    with patch.object(accounts, "_fetch_quote", return_value=None), \
+         patch.object(accounts, "get_sector", return_value=None):
         data = client.get("/api/watchlist").get_json()
     assert [i["symbol"] for i in data["items"]] == ["QCOM"]
 
@@ -249,6 +253,46 @@ def test_watchlist_cap(client):
         assert client.post("/api/watchlist", json={"symbol": "T99"}).status_code == 400
 
 
+def test_watchlist_categories_breakdown(client):
+    register(client)
+    for symbol in ["AAPL", "MSFT", "NVDA", "JPM"]:
+        client.post("/api/watchlist", json={"symbol": symbol})
+
+    sector_by_symbol = {
+        "AAPL": "Information Technology",
+        "MSFT": "Information Technology",
+        "NVDA": "Information Technology",
+        "JPM": "Financials",
+    }
+    with patch.object(accounts, "get_sector", side_effect=lambda s: sector_by_symbol[s]):
+        data = client.get("/api/watchlist/categories").get_json()
+
+    assert data["total"] == 4
+    by_name = {c["name"]: c for c in data["categories"]}
+    assert by_name["Information Technology"]["count"] == 3
+    assert by_name["Information Technology"]["pct"] == 75.0
+    assert by_name["Financials"]["count"] == 1
+    assert by_name["Financials"]["pct"] == 25.0
+
+
+def test_watchlist_categories_empty(client):
+    register(client)
+    data = client.get("/api/watchlist/categories").get_json()
+    assert data == {"total": 0, "categories": []}
+
+
+def test_watchlist_categories_requires_login(client):
+    assert client.get("/api/watchlist/categories").status_code == 401
+
+
+def test_watchlist_categories_unknown_sector_is_uncategorized(client):
+    register(client)
+    client.post("/api/watchlist", json={"symbol": "QSI"})
+    with patch.object(accounts, "get_sector", return_value=None):
+        data = client.get("/api/watchlist/categories").get_json()
+    assert data["categories"] == [{"name": "Uncategorized", "count": 1, "pct": 100.0}]
+
+
 def test_session_survives_new_client_with_same_cookie(client):
     """Closing and reopening the app == a fresh client presenting the same
     cookie; the user should still be logged in and see their list."""
@@ -261,6 +305,7 @@ def test_session_survives_new_client_with_same_cookie(client):
 
     fresh = api_app.app.test_client()
     fresh.set_cookie("session", cookie.value)
-    with patch.object(accounts, "_fetch_quote", return_value=None):
+    with patch.object(accounts, "_fetch_quote", return_value=None), \
+         patch.object(accounts, "get_sector", return_value=None):
         data = fresh.get("/api/watchlist").get_json()
     assert [i["symbol"] for i in data["items"]] == ["NVDA"]

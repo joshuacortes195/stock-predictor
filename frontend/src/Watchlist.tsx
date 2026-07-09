@@ -10,6 +10,13 @@ interface Item {
   symbol: string
   added_at: string
   quote: Quote | null
+  sector: string
+}
+
+interface Category {
+  name: string
+  count: number
+  pct: number
 }
 
 interface WatchlistProps {
@@ -28,6 +35,33 @@ function RowSkeleton() {
   )
 }
 
+function CategoryBreakdown({ categories, total }: { categories: Category[]; total: number }) {
+  if (total === 0) return null
+  return (
+    <div className="rounded-xl border border-edge bg-card px-4 py-3 mb-4">
+      <h3 className="text-xs uppercase tracking-wider text-ink-mute mb-3">
+        Categories in your watchlist
+      </h3>
+      <ul className="space-y-2">
+        {categories.map((c) => (
+          <li key={c.name} className="flex items-center gap-3">
+            <span className="w-36 sm:w-48 shrink-0 text-sm truncate">{c.name}</span>
+            <div className="flex-1 h-2 rounded-full bg-card-2 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gold"
+                style={{ width: `${c.pct}%` }}
+              />
+            </div>
+            <span className="w-20 shrink-0 text-right text-xs font-mono tabular-nums text-ink-mute">
+              {c.pct}% · {c.count}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
   const [items, setItems] = useState<Item[]>([])
   const [total, setTotal] = useState<number | null>(null)
@@ -35,9 +69,24 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoryTotal, setCategoryTotal] = useState(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
   const offsetRef = useRef(0)
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/watchlist/categories')
+      const data = await res.json()
+      if (res.ok) {
+        setCategories(data.categories)
+        setCategoryTotal(data.total)
+      }
+    } catch {
+      // Non-critical widget — the list above still works without it.
+    }
+  }, [])
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current) return
@@ -65,7 +114,8 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
 
   useEffect(() => {
     void loadMore()
-  }, [loadMore])
+    void loadCategories()
+  }, [loadMore, loadCategories])
 
   // Infinite scroll: when the sentinel below the list enters the viewport,
   // fetch the next page. Recreated after every page render — observe() always
@@ -90,6 +140,7 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
       setTotal((t) => (t === null ? t : t - 1))
       offsetRef.current -= 1
       onChanged(symbol, false)
+      void loadCategories()
     }
   }
 
@@ -114,6 +165,8 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
           </span>
         )}
       </div>
+
+      <CategoryBreakdown categories={categories} total={categoryTotal} />
 
       {error && (
         <div role="alert" className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-4 text-sm flex items-center justify-between gap-4">
@@ -141,6 +194,9 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
                 aria-label={`Open prediction for ${item.symbol}`}
               >
                 <span className="font-mono font-semibold w-20 shrink-0">{item.symbol}</span>
+                <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0 hidden sm:inline-block">
+                  {item.sector}
+                </span>
                 {item.quote ? (
                   <span className="flex items-baseline gap-2 min-w-0">
                     <span className="font-mono tabular-nums text-sm">

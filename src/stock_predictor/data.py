@@ -19,26 +19,39 @@ WIKI_SP500_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 _BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
 
 # Fallback list (large/liquid names) used only if the Wikipedia fetch fails.
+# Sector is a best-effort GICS sector for this small fallback set only — the
+# normal path reads the real sector straight from the Wikipedia table.
 _FALLBACK_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "ORCL",
-    "CRM", "ADBE", "AMD", "QCOM", "CSCO", "INTC", "IBM", "TXN", "INTU", "NOW",
-    "JPM", "V", "MA", "UNH", "HD", "PG", "JNJ", "XOM", "KO", "PEP", "WMT",
+    ("AAPL", "Information Technology"), ("MSFT", "Information Technology"),
+    ("GOOGL", "Communication Services"), ("AMZN", "Consumer Discretionary"),
+    ("NVDA", "Information Technology"), ("META", "Communication Services"),
+    ("TSLA", "Consumer Discretionary"), ("AVGO", "Information Technology"),
+    ("ORCL", "Information Technology"), ("CRM", "Information Technology"),
+    ("ADBE", "Information Technology"), ("AMD", "Information Technology"),
+    ("QCOM", "Information Technology"), ("CSCO", "Information Technology"),
+    ("INTC", "Information Technology"), ("IBM", "Information Technology"),
+    ("TXN", "Information Technology"), ("INTU", "Information Technology"),
+    ("NOW", "Information Technology"), ("JPM", "Financials"), ("V", "Financials"),
+    ("MA", "Financials"), ("UNH", "Health Care"), ("HD", "Consumer Discretionary"),
+    ("PG", "Consumer Staples"), ("JNJ", "Health Care"), ("XOM", "Energy"),
+    ("KO", "Consumer Staples"), ("PEP", "Consumer Staples"), ("WMT", "Consumer Staples"),
 ]
 
 
 def get_sp500_constituents() -> list[dict[str, str]]:
-    """Current S&P 500 constituents from Wikipedia as [{symbol, name}, ...],
-    alphabetical by symbol (yfinance ticker format)."""
+    """Current S&P 500 constituents from Wikipedia as
+    [{symbol, name, sector}, ...], alphabetical by symbol (yfinance ticker
+    format). Sector is the GICS Sector Wikipedia tracks for index membership."""
     try:
         resp = requests.get(WIKI_SP500_URL, headers=_BROWSER_HEADERS, timeout=15)
         resp.raise_for_status()
         table = pd.read_html(io.StringIO(resp.text))[0]
         out = [
-            {"symbol": str(sym).replace(".", "-"), "name": str(name)}
-            for sym, name in zip(table["Symbol"], table["Security"])
+            {"symbol": str(sym).replace(".", "-"), "name": str(name), "sector": str(sector)}
+            for sym, name, sector in zip(table["Symbol"], table["Security"], table["GICS Sector"])
         ]
     except Exception:
-        out = [{"symbol": t, "name": t} for t in _FALLBACK_TICKERS]
+        out = [{"symbol": t, "name": t, "sector": s} for t, s in _FALLBACK_TICKERS]
     return sorted(out, key=lambda c: c["symbol"])
 
 

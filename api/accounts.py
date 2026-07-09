@@ -26,13 +26,18 @@ import re
 import secrets
 import sqlite3
 import time
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yfinance as yf
 from flask import Blueprint, g, jsonify, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
+
+try:
+    from .sectors import get_sector, UNCATEGORIZED
+except ImportError:
+    from sectors import get_sector, UNCATEGORIZED
 
 logger = logging.getLogger(__name__)
 
@@ -437,13 +442,20 @@ def watchlist_page():
         (uid, limit, offset),
     ).fetchall()
 
-    # Quotes fetched concurrently — cold-cache pages would otherwise cost one
-    # serial yfinance round-trip per row.
+    # Quotes + sectors fetched concurrently — cold-cache pages would otherwise
+    # cost one serial yfinance round-trip per row (sector lookups are cached
+    # after the first hit, but a cold page still benefits from the fan-out).
     symbols = [r["symbol"] for r in rows]
     with ThreadPoolExecutor(max_workers=min(8, max(len(symbols), 1))) as pool:
         quotes = dict(zip(symbols, pool.map(_fetch_quote, symbols)))
+        sectors_by_symbol = dict(zip(symbols, pool.map(get_sector, symbols)))
     items = [
-        {"symbol": r["symbol"], "added_at": r["added_at"], "quote": quotes[r["symbol"]]}
+        {
+            "symbol": r["symbol"],
+            "added_at": r["added_at"],
+            "quote": quotes[r["symbol"]],
+            "sector": sectors_by_symbol[r["symbol"]] or UNCATEGORIZED,
+        }
         for r in rows
     ]
     return jsonify({
@@ -464,6 +476,30 @@ def watchlist_symbols():
         (current_user_id(),),
     ).fetchall()
     return jsonify({"symbols": [r["symbol"] for r in rows]})
+
+
+@bp.get("/api/watchlist/categories")
+@login_required
+def watchlist_categories():
+    """Sector breakdown of the whole watchlist (not just the current page):
+    how many saved symbols fall in each sector, and what share of the list
+    that is — e.g. "40% Information Technology, 20% Financials"."""
+    rows = get_db().execute(
+        "SELECT symbol FROM watchlist WHERE user_id = ?", (current_user_id(),)
+    ).fetchall()
+    symbols = [r["symbol"] for r in rows]
+    if not symbols:
+        return jsonify({"total": 0, "categories": []})
+
+    with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as pool:
+        sectors_by_symbol = list(pool.map(get_sector, symbols))
+    counts = Counter(s or UNCATEGORIZED for s in sectors_by_symbol)
+    total = len(symbols)
+    categories = [
+        {"name": name, "count": count, "pct": round(count / total * 100, 1)}
+        for name, count in counts.most_common()
+    ]
+    return jsonify({"total": total, "categories": categories})
 
 
 @bp.post("/api/watchlist")

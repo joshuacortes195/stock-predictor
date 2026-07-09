@@ -3,6 +3,7 @@ import PriceChart, { type PricePoint } from './PriceChart'
 import AuthPanel, { type User } from './AuthPanel'
 import AccountPanel from './AccountPanel'
 import Watchlist from './Watchlist'
+import Movers from './Movers'
 import ConfirmDialog from './ConfirmDialog'
 
 interface Signal {
@@ -19,6 +20,7 @@ interface Explanation {
 
 interface Prediction {
   ticker: string
+  sector: string
   as_of_date: string
   horizon: Horizon
   horizon_label: string
@@ -39,6 +41,7 @@ interface ApiError {
 interface TickerEntry {
   symbol: string
   name: string
+  sector?: string
 }
 
 interface HorizonMetrics {
@@ -51,9 +54,9 @@ interface Metrics {
   horizons: Record<string, HorizonMetrics>
 }
 
-type Horizon = '1d' | '1w' | '1m'
+export type Horizon = '1d' | '1w' | '1m'
 
-const HORIZONS: { key: Horizon; label: string }[] = [
+export const HORIZONS: { key: Horizon; label: string }[] = [
   { key: '1d', label: 'Next day' },
   { key: '1w', label: 'Next week' },
   { key: '1m', label: 'Next month' },
@@ -70,10 +73,11 @@ const VERDICT_STYLES: Record<Signal['verdict'], string> = {
 const RECENTS_KEY = 'recentTickers'
 const MAX_RECENTS = 5
 
-type View = 'search' | 'watchlist' | 'auth' | 'account'
+type View = 'search' | 'movers' | 'watchlist' | 'auth' | 'account'
 
 function viewFromHash(): View {
   const h = window.location.hash
+  if (h.startsWith('#/movers')) return 'movers'
   if (h.startsWith('#/watchlist')) return 'watchlist'
   if (h.startsWith('#/login')) return 'auth'
   if (h.startsWith('#/account')) return 'account'
@@ -82,6 +86,7 @@ function viewFromHash(): View {
 
 const HASH_FOR_VIEW: Record<View, string> = {
   search: '',
+  movers: '/movers',
   watchlist: '/watchlist',
   auth: '/login',
   account: '/account',
@@ -133,6 +138,15 @@ function SearchIcon({ size = 14 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.35-4.35" />
+    </svg>
+  )
+}
+
+function TrendingIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 17 9 11 13 15 21 7" />
+      <polyline points="14 7 21 7 21 14" />
     </svg>
   )
 }
@@ -756,6 +770,21 @@ function App() {
           </button>
           <button
             type="button"
+            onClick={() => go('movers')}
+            aria-current={effectiveView === 'movers' ? 'page' : undefined}
+            aria-label="Stocks to watch"
+            title="Stocks to watch"
+            className={`p-2 pointer-coarse:p-3 rounded-md cursor-pointer
+                        transition-colors duration-200 ${
+              effectiveView === 'movers'
+                ? 'bg-card-2 text-ink border border-edge'
+                : 'text-ink-mute hover:text-ink border border-transparent'
+            }`}
+          >
+            <TrendingIcon size={18} />
+          </button>
+          <button
+            type="button"
             onClick={() => go('watchlist')}
             aria-current={effectiveView === 'watchlist' ? 'page' : undefined}
             aria-label={`My watchlist${saved.size > 0 ? `, ${saved.size} saved` : ''}`}
@@ -809,6 +838,18 @@ function App() {
         )}
 
         {effectiveView === 'account' && user && <AccountPanel user={user} />}
+
+        {effectiveView === 'movers' && (
+          <Movers
+            onOpen={(symbol) => {
+              go('search')
+              void search(symbol)
+            }}
+            saved={saved}
+            loggedIn={!!user}
+            onToggleSave={(symbol) => void toggleSave(symbol)}
+          />
+        )}
 
         {effectiveView === 'watchlist' && user && (
           <Watchlist
@@ -888,12 +929,17 @@ function App() {
                       tabIndex={-1}
                       onClick={() => void search(t.symbol)}
                       className={`w-full text-left px-4 py-2 pointer-coarse:py-3 hover:bg-card-2 cursor-pointer
-                                 transition-colors duration-150 flex justify-between gap-3 ${
+                                 transition-colors duration-150 flex items-center gap-3 ${
                                    i === activeIdx ? 'bg-card-2' : ''
                                  }`}
                     >
-                      <span className="font-mono">{t.symbol}</span>
-                      <span className="text-ink-mute text-sm truncate">{t.name}</span>
+                      <span className="font-mono shrink-0">{t.symbol}</span>
+                      <span className="text-ink-mute text-sm truncate flex-1 min-w-0">{t.name}</span>
+                      {t.sector && (
+                        <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
+                          {t.sector}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -916,12 +962,17 @@ function App() {
                         tabIndex={-1}
                         onClick={() => void search(t.symbol)}
                         className={`w-full text-left px-4 py-2 pointer-coarse:py-3 hover:bg-card-2 cursor-pointer
-                                   transition-colors duration-150 flex justify-between gap-3 ${
+                                   transition-colors duration-150 flex items-center gap-3 ${
                                      idx === activeIdx ? 'bg-card-2' : ''
                                    }`}
                       >
-                        <span className="font-mono">{t.symbol}</span>
-                        <span className="text-ink-mute text-sm truncate">{t.name}</span>
+                        <span className="font-mono shrink-0">{t.symbol}</span>
+                        <span className="text-ink-mute text-sm truncate flex-1 min-w-0">{t.name}</span>
+                        {t.sector && (
+                          <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
+                            {t.sector}
+                          </span>
+                        )}
                       </button>
                     </li>
                   )
@@ -1065,8 +1116,13 @@ function App() {
             )}
 
             <Card>
-              <div className="flex items-baseline justify-between mb-4 gap-3">
-                <span className="text-xl font-mono">{result.ticker}</span>
+              <div className="flex items-baseline justify-between mb-4 gap-3 flex-wrap">
+                <span className="flex items-baseline gap-2">
+                  <span className="text-xl font-mono">{result.ticker}</span>
+                  <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute">
+                    {result.sector}
+                  </span>
+                </span>
                 <span className="text-sm text-ink-mute shrink-0">
                   {result.horizon_label} · as of {result.as_of_date}
                 </span>
