@@ -17,7 +17,6 @@ def client():
     api_app._request_log.clear()
     api_app._market_cache.update({"value": None, "at": 0.0})
     api_app._tickers_cache.update({"value": None, "at": 0.0})
-    api_app._movers_cache.clear()
     api_app.app.config["TESTING"] = True
     with patch.object(api_app, "fetch_market_context", return_value=_fake_market(250)), \
          patch.object(api_app, "get_sector", return_value="Information Technology"):
@@ -186,36 +185,6 @@ def test_rate_limit_kicks_in(client):
             assert client.get("/api/predict?ticker=AAPL").status_code == 200
         resp = client.get("/api/predict?ticker=AAPL")
     assert resp.status_code == 429
-
-
-def test_movers_ranks_by_probability_up_and_filters_to_up(client):
-    api_app._movers_cache.clear()
-    universe = ["AAPL", "MSFT", "NVDA"]
-    proba_by_ticker = {"AAPL": 0.51, "MSFT": 0.6, "NVDA": 0.3}
-
-    def fake_predict_one(ticker, horizon):
-        proba = proba_by_ticker[ticker]
-        return {
-            "ticker": ticker,
-            "sector": "Information Technology",
-            "prediction": "up" if proba >= 0.5 else "down",
-            "probability_up": proba,
-            "confidence": proba if proba >= 0.5 else 1 - proba,
-            "signal": api_app.investment_signal(proba, horizon),
-        }
-
-    with patch.object(api_app, "MOVERS_UNIVERSE", universe), \
-         patch.object(api_app, "_predict_one_for_movers", side_effect=fake_predict_one):
-        body = client.get("/api/movers?horizon=1d").get_json()
-
-    assert body["horizon"] == "1d"
-    assert [m["ticker"] for m in body["movers"]] == ["MSFT", "AAPL"]  # NVDA (down) excluded
-    assert all(m["prediction"] == "up" for m in body["movers"])
-
-
-def test_movers_invalid_horizon_is_400(client):
-    resp = client.get("/api/movers?horizon=1y")
-    assert resp.status_code == 400
 
 
 def test_security_headers_present(client):

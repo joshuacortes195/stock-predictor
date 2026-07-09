@@ -3,7 +3,6 @@ import PriceChart, { type PricePoint } from './PriceChart'
 import AuthPanel, { type User } from './AuthPanel'
 import AccountPanel from './AccountPanel'
 import Watchlist from './Watchlist'
-import Movers from './Movers'
 import ConfirmDialog from './ConfirmDialog'
 
 interface Signal {
@@ -73,11 +72,10 @@ const VERDICT_STYLES: Record<Signal['verdict'], string> = {
 const RECENTS_KEY = 'recentTickers'
 const MAX_RECENTS = 5
 
-type View = 'search' | 'movers' | 'watchlist' | 'auth' | 'account'
+type View = 'search' | 'watchlist' | 'auth' | 'account'
 
 function viewFromHash(): View {
   const h = window.location.hash
-  if (h.startsWith('#/movers')) return 'movers'
   if (h.startsWith('#/watchlist')) return 'watchlist'
   if (h.startsWith('#/login')) return 'auth'
   if (h.startsWith('#/account')) return 'account'
@@ -86,7 +84,6 @@ function viewFromHash(): View {
 
 const HASH_FOR_VIEW: Record<View, string> = {
   search: '',
-  movers: '/movers',
   watchlist: '/watchlist',
   auth: '/login',
   account: '/account',
@@ -138,15 +135,6 @@ function SearchIcon({ size = 14 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <circle cx="11" cy="11" r="7" />
       <path d="M21 21l-4.35-4.35" />
-    </svg>
-  )
-}
-
-function TrendingIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="3 17 9 11 13 15 21 7" />
-      <polyline points="14 7 21 7 21 14" />
     </svg>
   )
 }
@@ -770,21 +758,6 @@ function App() {
           </button>
           <button
             type="button"
-            onClick={() => go('movers')}
-            aria-current={effectiveView === 'movers' ? 'page' : undefined}
-            aria-label="Stocks to watch"
-            title="Stocks to watch"
-            className={`p-2 pointer-coarse:p-3 rounded-md cursor-pointer
-                        transition-colors duration-200 ${
-              effectiveView === 'movers'
-                ? 'bg-card-2 text-ink'
-                : 'text-ink-mute hover:text-ink'
-            }`}
-          >
-            <TrendingIcon size={18} />
-          </button>
-          <button
-            type="button"
             onClick={() => go('watchlist')}
             aria-current={effectiveView === 'watchlist' ? 'page' : undefined}
             aria-label={`My watchlist${saved.size > 0 ? `, ${saved.size} saved` : ''}`}
@@ -838,18 +811,6 @@ function App() {
         )}
 
         {effectiveView === 'account' && user && <AccountPanel user={user} />}
-
-        {effectiveView === 'movers' && (
-          <Movers
-            onOpen={(symbol) => {
-              go('search')
-              void search(symbol)
-            }}
-            saved={saved}
-            loggedIn={!!user}
-            onToggleSave={(symbol) => void toggleSave(symbol)}
-          />
-        )}
 
         {effectiveView === 'watchlist' && user && (
           <Watchlist
