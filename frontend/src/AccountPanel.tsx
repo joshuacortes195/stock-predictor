@@ -39,13 +39,13 @@ export default function AccountPanel({ user }: AccountPanelProps) {
     }
   }
 
-  const inputClass = `w-full rounded-lg bg-card border border-edge px-4 py-2.5
+  const inputClass = `w-full rounded-lg bg-card-2 px-4 py-2.5
                       placeholder:text-ink-faint focus:outline-none focus:ring-2
-                      focus:ring-gold/70 focus:border-gold/50 transition-colors duration-200`
+                      focus:ring-accent/70 transition-colors duration-200`
 
   return (
     <div className="space-y-4 max-w-md mx-auto">
-      <div className="rounded-xl border border-edge bg-card p-6">
+      <div className="rounded-xl bg-card p-6">
         <h2 className="font-semibold text-lg mb-4">Account</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -68,13 +68,13 @@ export default function AccountPanel({ user }: AccountPanelProps) {
         </p>
       </div>
 
-      <div className="rounded-xl border border-edge bg-card p-6">
+      <div className="rounded-xl bg-card p-6">
         <h3 className="font-semibold mb-4">Change password</h3>
 
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-2.5 mb-4 text-sm"
+            className="rounded-lg bg-down-bg text-down px-4 py-2.5 mb-4 text-sm"
           >
             {error}
           </div>
@@ -82,7 +82,7 @@ export default function AccountPanel({ user }: AccountPanelProps) {
         {success && (
           <div
             role="status"
-            className="rounded-lg border border-up-edge bg-up-bg text-up px-4 py-2.5 mb-4 text-sm"
+            className="rounded-lg bg-up-bg text-up px-4 py-2.5 mb-4 text-sm"
           >
             Password updated. Use the new one next time you log in.
           </div>
@@ -141,9 +141,9 @@ export default function AccountPanel({ user }: AccountPanelProps) {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
+            className="rounded-lg bg-accent hover:bg-accent-hi disabled:opacity-50
                        disabled:cursor-not-allowed cursor-pointer px-5 py-2.5
-                       font-semibold text-on-gold transition-colors duration-200"
+                       font-semibold text-on-accent transition-colors duration-200"
           >
             {busy ? 'Updating…' : 'Update password'}
           </button>

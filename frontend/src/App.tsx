@@ -63,11 +63,11 @@ export const HORIZONS: { key: Horizon; label: string }[] = [
 ]
 
 const VERDICT_STYLES: Record<Signal['verdict'], string> = {
-  no_edge: 'border-edge bg-card-2 text-ink',
-  weak_up: 'border-up-edge bg-up-bg text-up',
-  lean_up: 'border-up-edge bg-up-bg text-up',
-  weak_down: 'border-down-edge bg-down-bg text-down',
-  lean_down: 'border-down-edge bg-down-bg text-down',
+  no_edge: 'bg-card-2 text-ink',
+  weak_up: 'bg-up-bg text-up',
+  lean_up: 'bg-up-bg text-up',
+  weak_down: 'bg-down-bg text-down',
+  lean_down: 'bg-down-bg text-down',
 }
 
 const RECENTS_KEY = 'recentTickers'
@@ -198,7 +198,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-title"
-        className="pop-in w-full max-w-sm rounded-xl border border-edge bg-card p-6 shadow-xl shadow-scrim"
+        className="pop-in w-full max-w-sm rounded-xl bg-card p-6 shadow-xl shadow-scrim"
       >
         <h2 id="about-title" className="font-semibold text-lg mb-3">About this app</h2>
         <div className="text-sm text-ink-mute space-y-3 leading-relaxed mb-5">
@@ -222,7 +222,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
             type="button"
             ref={closeRef}
             onClick={onClose}
-            className="rounded-lg border border-edge bg-card-2 hover:bg-edge px-4 py-2
+            className="rounded-lg bg-card-2 hover:bg-edge px-4 py-2
                        pointer-coarse:py-3 text-sm font-semibold cursor-pointer
                        transition-colors duration-150"
           >
@@ -277,7 +277,7 @@ function SettingsMenu({
         aria-haspopup="true"
         aria-label="Settings"
         title="Settings"
-        className="p-2 pointer-coarse:p-3 rounded-md cursor-pointer border border-edge
+        className="p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                    bg-card hover:bg-card-2 transition-colors duration-200"
       >
         <GearIcon />
@@ -287,7 +287,7 @@ function SettingsMenu({
         <div
           role="menu"
           aria-label="Settings"
-          className="pop-in absolute right-0 mt-2 w-64 rounded-xl border border-edge bg-card
+          className="pop-in absolute right-0 mt-2 w-64 rounded-xl bg-card
                      shadow-xl shadow-scrim p-2 z-20"
         >
           <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-ink-mute">
@@ -296,7 +296,7 @@ function SettingsMenu({
           <div
             role="group"
             aria-label="Theme"
-            className="mx-2 mb-2 grid grid-cols-2 gap-1 rounded-lg border border-edge bg-card-2 p-1"
+            className="mx-2 mb-2 grid grid-cols-2 gap-1 rounded-lg bg-card-2 p-1"
           >
             {(
               [
@@ -313,8 +313,8 @@ function SettingsMenu({
                             pointer-coarse:py-2.5 text-sm font-medium cursor-pointer
                             transition-colors duration-150 ${
                   theme === t.key
-                    ? 'bg-card text-ink border border-edge shadow-sm'
-                    : 'text-ink-mute hover:text-ink border border-transparent'
+                    ? 'bg-card text-ink'
+                    : 'text-ink-mute hover:text-ink'
                 }`}
               >
                 {t.icon}
@@ -325,7 +325,7 @@ function SettingsMenu({
 
           {user && (
             <>
-              <div className="mx-2 my-1 border-t border-edge" aria-hidden="true" />
+              <div className="my-2" aria-hidden="true" />
               <div className="px-3 py-1.5 text-xs text-ink-mute truncate">
                 Signed in as <span className="text-ink font-medium">{user.username}</span>
               </div>
@@ -360,7 +360,7 @@ function SettingsMenu({
             </>
           )}
 
-          <div className="mx-2 my-1 border-t border-edge" aria-hidden="true" />
+          <div className="my-2" aria-hidden="true" />
           <button
             type="button"
             role="menuitem"
@@ -408,7 +408,7 @@ function loadRecents(): string[] {
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-xl border border-edge bg-card p-6">{children}</div>
+  return <div className="rounded-2xl bg-card p-6">{children}</div>
 }
 
 function SkeletonResult() {
@@ -418,12 +418,12 @@ function SkeletonResult() {
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-[62px] rounded-lg border border-edge bg-card animate-pulse motion-reduce:animate-none"
+            className="h-[62px] rounded-lg bg-card animate-pulse motion-reduce:animate-none"
           />
         ))}
       </div>
-      <div className="h-80 rounded-xl border border-edge bg-card animate-pulse motion-reduce:animate-none" />
-      <div className="h-56 rounded-xl border border-edge bg-card animate-pulse motion-reduce:animate-none" />
+      <div className="h-80 rounded-2xl bg-card animate-pulse motion-reduce:animate-none" />
+      <div className="h-56 rounded-2xl bg-card animate-pulse motion-reduce:animate-none" />
     </div>
   )
 }
@@ -450,7 +450,7 @@ function StatsRow({ history }: { history: PricePoint[] }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {stats.map((s) => (
-        <div key={s.label} className="rounded-lg border border-edge bg-card px-3 py-2.5">
+        <div key={s.label} className="rounded-lg bg-card px-3 py-2.5">
           <div className="text-[11px] uppercase tracking-wider text-ink-mute mb-0.5">{s.label}</div>
           <div className={`font-mono tabular-nums text-sm font-semibold ${s.tone}`}>{s.value}</div>
         </div>
@@ -741,18 +741,18 @@ function App() {
         : view
 
   return (
-    <div className="min-h-dvh bg-surface app-bg text-ink flex flex-col items-center px-4 py-14
+    <div className="min-h-dvh bg-surface text-ink flex flex-col items-center px-4 py-14
                     transition-colors duration-300 motion-reduce:transition-none">
       <main className="w-full max-w-xl">
         <div className="flex items-center gap-2.5 mb-1">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-gold" aria-hidden="true" />
+          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-accent" aria-hidden="true" />
           <h1 className="text-2xl font-semibold tracking-tight">Stock Movement Predictor</h1>
         </div>
         <p className="text-ink-mute mb-5">
           Search a ticker for a model-driven direction prediction.
         </p>
 
-        <nav aria-label="Main" className="flex items-center gap-1.5 mb-6 border-b border-edge pb-3">
+        <nav aria-label="Main" className="flex items-center gap-1.5 mb-6 pb-3">
           <button
             type="button"
             onClick={() => go('search')}
@@ -762,8 +762,8 @@ function App() {
             className={`p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                         transition-colors duration-200 ${
               effectiveView === 'search'
-                ? 'bg-card-2 text-ink border border-edge'
-                : 'text-ink-mute hover:text-ink border border-transparent'
+                ? 'bg-card-2 text-ink'
+                : 'text-ink-mute hover:text-ink'
             }`}
           >
             <SearchIcon size={18} />
@@ -777,8 +777,8 @@ function App() {
             className={`p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                         transition-colors duration-200 ${
               effectiveView === 'movers'
-                ? 'bg-card-2 text-ink border border-edge'
-                : 'text-ink-mute hover:text-ink border border-transparent'
+                ? 'bg-card-2 text-ink'
+                : 'text-ink-mute hover:text-ink'
             }`}
           >
             <TrendingIcon size={18} />
@@ -792,16 +792,16 @@ function App() {
             className={`relative p-2 pointer-coarse:p-3 rounded-md cursor-pointer
                         transition-colors duration-200 ${
               effectiveView === 'watchlist'
-                ? 'bg-card-2 text-ink border border-edge'
-                : 'text-ink-mute hover:text-ink border border-transparent'
+                ? 'bg-card-2 text-ink'
+                : 'text-ink-mute hover:text-ink'
             }`}
           >
             <BookmarkIcon size={18} filled={effectiveView === 'watchlist'} />
             {saved.size > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-gold
-                           text-on-gold text-[10px] font-semibold flex items-center justify-center"
+                className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-accent
+                           text-on-accent text-[10px] font-semibold flex items-center justify-center"
               >
                 {saved.size}
               </span>
@@ -813,7 +813,7 @@ function App() {
               type="button"
               onClick={() => go('auth')}
               className="px-3 py-1.5 pointer-coarse:py-3 rounded-md text-sm font-medium cursor-pointer
-                         border border-edge bg-card hover:bg-card-2 transition-colors duration-200"
+                         bg-card hover:bg-card-2 transition-colors duration-200"
             >
               Log in
             </button>
@@ -896,9 +896,9 @@ function App() {
               aria-activedescendant={
                 open && activeIdx >= 0 && options[activeIdx] ? options[activeIdx].id : undefined
               }
-              className="w-full rounded-lg bg-card border border-edge px-4 py-2.5
+              className="w-full rounded-lg bg-card-2 px-4 py-2.5
                          text-lg font-mono tracking-wide placeholder:text-ink-faint
-                         focus:outline-none focus:ring-2 focus:ring-gold/70 focus:border-gold/50
+                         focus:outline-none focus:ring-2 focus:ring-accent/70
                          transition-colors duration-200"
             />
 
@@ -910,7 +910,7 @@ function App() {
                 // goes through the combobox (aria-activedescendant), not Tab.
                 tabIndex={-1}
                 className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto rounded-lg
-                           border border-edge bg-card shadow-xl shadow-black/50"
+                           bg-card shadow-xl shadow-black/50"
               >
                 {recentEntries.length > 0 && (
                   <li className="px-4 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-ink-mute">
@@ -936,7 +936,7 @@ function App() {
                       <span className="font-mono shrink-0">{t.symbol}</span>
                       <span className="text-ink-mute text-sm truncate flex-1 min-w-0">{t.name}</span>
                       {t.sector && (
-                        <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
+                        <span className="text-[11px] rounded-full bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
                           {t.sector}
                         </span>
                       )}
@@ -944,7 +944,7 @@ function App() {
                   </li>
                 ))}
                 {recentEntries.length > 0 && matches.length > 0 && (
-                  <li className="px-4 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-ink-mute border-t border-edge">
+                  <li className="px-4 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-ink-mute">
                     S&amp;P 500
                   </li>
                 )}
@@ -969,7 +969,7 @@ function App() {
                         <span className="font-mono shrink-0">{t.symbol}</span>
                         <span className="text-ink-mute text-sm truncate flex-1 min-w-0">{t.name}</span>
                         {t.sector && (
-                          <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
+                          <span className="text-[11px] rounded-full bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
                             {t.sector}
                           </span>
                         )}
@@ -991,9 +991,9 @@ function App() {
             disabled={loading}
             aria-label={loading ? 'Searching…' : 'Search'}
             title="Search"
-            className="rounded-lg bg-gold hover:bg-gold-hi disabled:opacity-50
+            className="rounded-lg bg-accent hover:bg-accent-hi disabled:opacity-50
                        disabled:cursor-not-allowed cursor-pointer px-4 py-2.5
-                       text-on-gold transition-colors duration-200"
+                       text-on-accent transition-colors duration-200"
           >
             <span className={loading ? 'block animate-pulse motion-reduce:animate-none' : 'block'}>
               <SearchIcon size={18} />
@@ -1011,8 +1011,8 @@ function App() {
               className={`px-3 py-1.5 pointer-coarse:py-3 pointer-coarse:px-4 rounded-md text-sm font-medium cursor-pointer
                           transition-colors duration-200 ${
                 horizon === h.key
-                  ? 'bg-card-2 text-ink border border-edge'
-                  : 'text-ink-mute hover:text-ink border border-transparent'
+                  ? 'bg-card-2 text-ink'
+                  : 'text-ink-mute hover:text-ink'
               }`}
             >
               {h.label}
@@ -1027,8 +1027,8 @@ function App() {
                           pointer-coarse:py-3 text-sm font-semibold cursor-pointer
                           transition-colors duration-150 ${
                 saved.has(result.ticker)
-                  ? 'text-gold border border-gold/50 bg-gold/10 hover:bg-gold/20'
-                  : 'bg-gold hover:bg-gold-hi text-on-gold'
+                  ? 'text-accent border border-accent/50 bg-accent/10 hover:bg-accent/20'
+                  : 'bg-accent hover:bg-accent-hi text-on-accent'
               }`}
             >
               <StarIcon filled={saved.has(result.ticker)} />
@@ -1054,7 +1054,7 @@ function App() {
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-6
+            className="rounded-lg bg-down-bg text-down px-4 py-3 mb-6
                        flex items-center justify-between gap-4"
           >
             <span>{error}</span>
@@ -1062,7 +1062,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => void search(ticker)}
-                className="shrink-0 rounded-md border border-down-edge px-3 py-1.5 pointer-coarse:py-3
+                className="shrink-0 rounded-md px-3 py-1.5 pointer-coarse:py-3
                            text-sm font-medium cursor-pointer hover:bg-down-bg
                            transition-colors duration-150"
               >
@@ -1075,7 +1075,7 @@ function App() {
         {loading && !result && <SkeletonResult />}
 
         {!result && !error && !loading && (
-          <div className="rounded-xl border border-dashed border-edge px-6 py-8 text-center">
+          <div className="rounded-xl bg-card-2 px-6 py-8 text-center">
             <p className="text-sm text-ink-mute mb-4">
               No prediction yet — search a ticker above, or try one of these:
             </p>
@@ -1085,8 +1085,8 @@ function App() {
                   key={s}
                   type="button"
                   onClick={() => void search(s)}
-                  className="rounded-full border border-edge bg-card px-4 py-1.5 pointer-coarse:py-3
-                             font-mono text-sm cursor-pointer hover:bg-card-2 hover:border-gold/40
+                  className="rounded-full bg-card px-4 py-1.5 pointer-coarse:py-3
+                             font-mono text-sm cursor-pointer hover:bg-card-2
                              transition-colors duration-150"
                 >
                   {s}
@@ -1119,7 +1119,7 @@ function App() {
               <div className="flex items-baseline justify-between mb-4 gap-3 flex-wrap">
                 <span className="flex items-baseline gap-2">
                   <span className="text-xl font-mono">{result.ticker}</span>
-                  <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute">
+                  <span className="text-[11px] rounded-full bg-card-2 px-2 py-0.5 text-ink-mute">
                     {result.sector}
                   </span>
                 </span>
@@ -1150,12 +1150,12 @@ function App() {
                 className="w-full h-2 rounded-full bg-card-2 overflow-hidden mb-5"
               >
                 <div
-                  className="h-full bg-gold transition-[width] duration-300 motion-reduce:transition-none"
+                  className="h-full bg-accent transition-[width] duration-300 motion-reduce:transition-none"
                   style={{ width: `${result.probability_up * 100}%` }}
                 />
               </div>
 
-              <div className={`rounded-lg border px-4 py-3 mb-4 ${VERDICT_STYLES[result.signal.verdict]}`}>
+              <div className={`rounded-lg px-4 py-3 mb-4 ${VERDICT_STYLES[result.signal.verdict]}`}>
                 <div className="font-semibold mb-1">
                   Should you invest? {result.signal.label}
                 </div>

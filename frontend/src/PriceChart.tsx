@@ -129,8 +129,8 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
             aria-pressed={range === r.key}
             className={`px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:py-3.5 rounded-md text-xs font-medium cursor-pointer transition-colors duration-200 ${
               range === r.key
-                ? 'bg-card-2 text-ink border border-edge'
-                : 'text-ink-mute hover:text-ink border border-transparent'
+                ? 'bg-card-2 text-ink'
+                : 'text-ink-mute hover:text-ink'
             }`}
           >
             {r.key}
@@ -142,7 +142,7 @@ export default function PriceChart({ data, forecast, ticker }: PriceChartProps) 
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full touch-none select-none rounded focus:outline-none
-                   focus-visible:outline-2 focus-visible:outline-gold/70"
+                   focus-visible:outline-2 focus-visible:outline-accent/70"
         role="img"
         tabIndex={0}
         aria-label={`${ticker} closed at $${last.toFixed(2)}, ${change >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(2)}% over the past ${range}, with a short model-projected continuation. Use the left and right arrow keys to inspect individual days.`}

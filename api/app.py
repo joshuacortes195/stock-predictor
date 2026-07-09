@@ -372,9 +372,13 @@ def _predict_one_for_movers(ticker: str, horizon: str) -> dict | None:
         return None
 
 
+MOVERS_TOP_N = 5
+
+
 def compute_movers(horizon: str) -> list[dict]:
-    """Rank the movers universe by P(up) for `horizon` and return the
-    top bullish names — "stocks predicted to rise soon"."""
+    """Rank the movers universe by P(up) for `horizon` and return the top-N
+    bullish names — the stocks a user should most look to invest in per the
+    model's own prediction."""
     with ThreadPoolExecutor(max_workers=10) as pool:
         results = list(
             pool.map(lambda t: _predict_one_for_movers(t, horizon), MOVERS_UNIVERSE)
@@ -384,7 +388,7 @@ def compute_movers(horizon: str) -> list[dict]:
         key=lambda r: r["probability_up"],
         reverse=True,
     )
-    return ranked[:15]
+    return ranked[:MOVERS_TOP_N]
 
 
 @app.get("/api/health")

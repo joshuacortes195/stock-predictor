@@ -38,7 +38,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="pop-in w-full max-w-sm rounded-xl border border-edge bg-card p-6 shadow-xl shadow-scrim"
+        className="pop-in w-full max-w-sm rounded-xl bg-card p-6 shadow-xl shadow-scrim"
       >
         <h2 id={titleId} className="font-semibold text-lg mb-1.5">
           {title}
@@ -51,7 +51,7 @@ export default function ConfirmDialog({
             type="button"
             ref={continueRef}
             onClick={onContinue}
-            className="rounded-lg border border-edge bg-card-2 hover:bg-edge px-4 py-2
+            className="rounded-lg bg-card-2 hover:bg-edge px-4 py-2
                        pointer-coarse:py-3 text-sm font-semibold cursor-pointer
                        transition-colors duration-150"
           >

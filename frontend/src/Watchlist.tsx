@@ -30,7 +30,7 @@ function RowSkeleton() {
   return (
     <li
       aria-hidden="true"
-      className="h-[68px] rounded-lg border border-edge bg-card animate-pulse motion-reduce:animate-none"
+      className="h-[68px] rounded-lg bg-card animate-pulse motion-reduce:animate-none"
     />
   )
 }
@@ -38,7 +38,7 @@ function RowSkeleton() {
 function CategoryBreakdown({ categories, total }: { categories: Category[]; total: number }) {
   if (total === 0) return null
   return (
-    <div className="rounded-xl border border-edge bg-card px-4 py-3 mb-4">
+    <div className="rounded-xl bg-card px-4 py-3 mb-4">
       <h3 className="text-xs uppercase tracking-wider text-ink-mute mb-3">
         Categories in your watchlist
       </h3>
@@ -48,7 +48,7 @@ function CategoryBreakdown({ categories, total }: { categories: Category[]; tota
             <span className="w-36 sm:w-48 shrink-0 text-sm truncate">{c.name}</span>
             <div className="flex-1 h-2 rounded-full bg-card-2 overflow-hidden">
               <div
-                className="h-full rounded-full bg-gold"
+                className="h-full rounded-full bg-accent"
                 style={{ width: `${c.pct}%` }}
               />
             </div>
@@ -146,7 +146,7 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
 
   if (total === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-edge px-6 py-10 text-center">
+      <div className="rounded-xl bg-card-2 px-6 py-10 text-center">
         <p className="text-sm text-ink-mute">
           Nothing saved yet. Search a ticker and press{' '}
           <span className="text-ink font-medium">Save</span> to start your watchlist.
@@ -169,12 +169,12 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
       <CategoryBreakdown categories={categories} total={categoryTotal} />
 
       {error && (
-        <div role="alert" className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-4 text-sm flex items-center justify-between gap-4">
+        <div role="alert" className="rounded-lg bg-down-bg text-down px-4 py-3 mb-4 text-sm flex items-center justify-between gap-4">
           <span>{error}</span>
           <button
             type="button"
             onClick={() => void loadMore()}
-            className="shrink-0 rounded-md border border-down-edge px-3 py-1.5 pointer-coarse:py-3
+            className="shrink-0 rounded-md px-3 py-1.5 pointer-coarse:py-3
                        text-sm font-medium cursor-pointer hover:bg-down-bg transition-colors duration-150"
           >
             Try again
@@ -185,8 +185,8 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
       <ul className="space-y-2">
         {items.map((item) => (
           <li key={item.symbol}>
-            <div className="rounded-lg border border-edge bg-card px-4 py-3 flex items-center gap-3
-                            hover:border-gold/40 transition-colors duration-150">
+            <div className="rounded-lg bg-card px-4 py-3 flex items-center gap-3
+                            hover:bg-card-2 transition-colors duration-150">
               <button
                 type="button"
                 onClick={() => onOpen(item.symbol)}
@@ -194,7 +194,7 @@ export default function Watchlist({ onOpen, onChanged }: WatchlistProps) {
                 aria-label={`Open prediction for ${item.symbol}`}
               >
                 <span className="font-mono font-semibold w-20 shrink-0">{item.symbol}</span>
-                <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0 hidden sm:inline-block">
+                <span className="text-[11px] rounded-full bg-card-2 px-2 py-0.5 text-ink-mute shrink-0 hidden sm:inline-block">
                   {item.sector}
                 </span>
                 {item.quote ? (

@@ -51,7 +51,7 @@ function RowSkeleton() {
   return (
     <li
       aria-hidden="true"
-      className="h-[68px] rounded-lg border border-edge bg-card animate-pulse motion-reduce:animate-none"
+      className="h-[68px] rounded-lg bg-card animate-pulse motion-reduce:animate-none"
     />
   )
 }
@@ -91,7 +91,7 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
   return (
     <div>
       <div className="flex items-baseline justify-between mb-1 gap-3">
-        <h2 className="font-semibold">Stocks to watch</h2>
+        <h2 className="font-semibold">Top 5 stocks to watch</h2>
         {data && (
           <span className="text-xs text-ink-mute tabular-nums shrink-0">
             updated {formatUpdated(data.updated_seconds_ago)}
@@ -99,8 +99,8 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
         )}
       </div>
       <p className="text-sm text-ink-mute mb-4">
-        The model's most bullish calls for the {data?.horizon_label ?? 'selected'} horizon, out of
-        a curated cross-sector watchlist — not the whole market.
+        The model's 5 most bullish calls for the {data?.horizon_label ?? 'selected'} horizon, out
+        of a curated cross-sector watchlist — not the whole market.
       </p>
 
       <div className="flex items-center gap-1 mb-4" role="group" aria-label="Prediction horizon">
@@ -113,8 +113,8 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
             className={`px-3 py-1.5 pointer-coarse:py-3 pointer-coarse:px-4 rounded-md text-sm font-medium cursor-pointer
                         transition-colors duration-200 ${
               horizon === h.key
-                ? 'bg-card-2 text-ink border border-edge'
-                : 'text-ink-mute hover:text-ink border border-transparent'
+                ? 'bg-card-2 text-ink'
+                : 'text-ink-mute hover:text-ink'
             }`}
           >
             {h.label}
@@ -125,14 +125,14 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
       {error && (
         <div
           role="alert"
-          className="rounded-lg border border-down-edge bg-down-bg text-down px-4 py-3 mb-4 text-sm
+          className="rounded-lg bg-down-bg text-down px-4 py-3 mb-4 text-sm
                      flex items-center justify-between gap-4"
         >
           <span>{error}</span>
           <button
             type="button"
             onClick={() => setHorizon((h) => h)}
-            className="shrink-0 rounded-md border border-down-edge px-3 py-1.5 pointer-coarse:py-3
+            className="shrink-0 rounded-md px-3 py-1.5 pointer-coarse:py-3
                        text-sm font-medium cursor-pointer hover:bg-down-bg transition-colors duration-150"
           >
             Try again
@@ -141,7 +141,7 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
       )}
 
       {!error && !loading && data && data.movers.length === 0 && (
-        <div className="rounded-xl border border-dashed border-edge px-6 py-8 text-center">
+        <div className="rounded-xl bg-card-2 px-6 py-8 text-center">
           <p className="text-sm text-ink-mute">
             Nothing in the watch universe is leaning up for this horizon right now.
           </p>
@@ -153,8 +153,8 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
           data?.movers.map((m, i) => (
             <li key={m.ticker}>
               <div
-                className="rounded-lg border border-edge bg-card px-4 py-3 flex items-center gap-3
-                           hover:border-gold/40 transition-colors duration-150"
+                className="rounded-lg bg-card px-4 py-3 flex items-center gap-3
+                           hover:bg-card-2 transition-colors duration-150"
               >
                 <span className="w-5 shrink-0 text-xs text-ink-faint tabular-nums">{i + 1}</span>
                 <button
@@ -164,7 +164,7 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
                   aria-label={`Open prediction for ${m.ticker}`}
                 >
                   <span className="font-mono font-semibold shrink-0">{m.ticker}</span>
-                  <span className="text-[11px] rounded-full border border-edge bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
+                  <span className="text-[11px] rounded-full bg-card-2 px-2 py-0.5 text-ink-mute shrink-0">
                     {m.sector}
                   </span>
                   <span className="flex items-baseline gap-1.5 min-w-0">
@@ -182,8 +182,8 @@ export default function Movers({ onOpen, saved, loggedIn, onToggleSave }: Movers
                   title={saved.has(m.ticker) ? 'Saved' : 'Save'}
                   className={`shrink-0 rounded-md p-2 pointer-coarse:p-3 cursor-pointer transition-colors duration-150 ${
                     saved.has(m.ticker)
-                      ? 'text-gold hover:bg-gold/10'
-                      : 'text-ink-mute hover:text-gold hover:bg-card-2'
+                      ? 'text-accent hover:bg-accent/10'
+                      : 'text-ink-mute hover:text-accent hover:bg-card-2'
                   }`}
                 >
                   <StarIcon filled={saved.has(m.ticker)} />

@@ -1,25 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-/* Design tokens. Dark (default): deep-navy fintech surfaces with a gold
-   accent. Light: warm porcelain/ivory — deliberately not a gray bootstrap
-   palette — with the same navy ink and a darkened gold for text contrast.
-   Every color the UI uses (including SVG charts and status boxes) routes
-   through these variables, so [data-theme] swaps restyle everything. */
+/* Design tokens, Robinhood-style: near-black (dark) / white (light) flat
+   surfaces, a single green accent for CTAs and focus, and cards that read as
+   flat fills separated by spacing rather than borders or shadows. Every
+   color the UI uses (including SVG charts and status boxes) routes through
+   these variables, so [data-theme] swaps restyle everything. */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-  --color-surface: #0b1020; /* page background */
-  --color-card: #151b2c; /* raised panels */
-  --color-card-2: #1b2338; /* nested / hover surfaces */
-  --color-edge: #252e48; /* hairlines and borders */
-  --color-ink: #edf0f7; /* primary text */
-  --color-ink-mute: #93a4bc; /* secondary text (≥4.5:1 on card) */
-  --color-ink-faint: #64748b; /* tertiary text, large sizes only */
+  --color-surface: #0a0a0a; /* page background */
+  --color-card: #151515; /* flat panel fill (no border) */
+  --color-card-2: #1f1f1f; /* nested / hover surfaces */
+  --color-edge: #2a2a2a; /* the few remaining hairlines (inputs, menu dividers) */
+  --color-ink: #f5f5f5; /* primary text */
+  --color-ink-mute: #9b9b9b; /* secondary text (≥4.5:1 on card) */
+  --color-ink-faint: #6b6b6b; /* tertiary text, large sizes only */
 
-  --color-gold: #f59e0b; /* primary accent / CTA fill */
-  --color-gold-hi: #fbbf24; /* accent hover */
-  --color-on-gold: #241a04; /* text on gold fills (dark in both themes) */
+  --color-accent: #00c805; /* primary accent / CTA fill */
+  --color-accent-hi: #1fe024; /* accent hover */
+  --color-on-accent: #04170a; /* text on accent fills (dark in both themes) */
 
   --color-up: #34d399; /* positive text */
   --color-up-deep: #059669; /* positive chart marks */
@@ -31,7 +31,7 @@
   --color-down-edge: #9f1239; /* negative status-box border */
 
   --color-forecast: #f8fafc; /* dashed projection line */
-  --color-scrim: rgb(2 6 18 / 0.62); /* modal backdrop */
+  --color-scrim: rgb(0 0 0 / 0.7); /* modal backdrop */
 }
 
 :root {
@@ -41,16 +41,16 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --color-surface: #f6f2e9; /* warm ivory, not gray */
-  --color-card: #fffdf7;
-  --color-card-2: #f0eadc;
-  --color-edge: #ddd3bf;
-  --color-ink: #1d2433; /* deep navy ink */
-  --color-ink-mute: #5d6474; /* ≥4.5:1 on card */
-  --color-ink-faint: #8d94a5;
+  --color-surface: #ffffff; /* pure white */
+  --color-card: #ffffff;
+  --color-card-2: #f2f2f2;
+  --color-edge: #e5e5e5;
+  --color-ink: #0a0a0a; /* near-black ink */
+  --color-ink-mute: #666666; /* ≥4.5:1 on card */
+  --color-ink-faint: #999999;
 
-  --color-gold: #d97706; /* CTA fill — dark text keeps 4.5:1+ */
-  --color-gold-hi: #b45309; /* hover darkens in light mode */
+  --color-accent: #009606; /* deeper green keeps contrast on white */
+  --color-accent-hi: #007a05; /* hover darkens in light mode */
 
   --color-up: #047857;
   --color-up-deep: #059669;
@@ -65,23 +65,13 @@
   --color-scrim: rgb(29 36 51 / 0.45);
 }
 
-/* Keyboard users get the same gold focus treatment on every control, not
+/* Keyboard users get the same accent focus treatment on every control, not
    just the search input. */
 @layer base {
   button:focus-visible {
-    outline: 2px solid var(--color-gold);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
-}
-
-/* A quiet radial gold wash behind the header — the one decorative flourish;
-   color-mix keeps it derived from the theme's own accent. */
-.app-bg {
-  background-image: radial-gradient(
-    60rem 26rem at 50% -10rem,
-    color-mix(in oklab, var(--color-gold) 9%, transparent),
-    transparent 70%
-  );
 }
 
 /* Dialog + dropdown entrances (respecting reduced motion). */
